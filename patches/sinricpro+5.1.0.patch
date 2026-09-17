@@ -1,0 +1,223 @@
+diff --git a/node_modules/sinricpro/dist/capabilities/VolumeController copy.js b/node_modules/sinricpro/dist/capabilities/VolumeController copy.js
+new file mode 100644
+index 0000000..9877eff
+--- /dev/null
++++ b/node_modules/sinricpro/dist/capabilities/VolumeController copy.js	
+@@ -0,0 +1,74 @@
++"use strict";
++/**
++ * VolumeController - Adds volume control capability
++ */
++Object.defineProperty(exports, "__esModule", { value: true });
++exports.VolumeController = VolumeController;
++const EventLimiter_1 = require("../core/EventLimiter");
++const types_1 = require("../core/types");
++function VolumeController(Base) {
++    return class extends Base {
++        // eslint-disable-next-line @typescript-eslint/no-explicit-any
++        constructor(...args) {
++            super(...args);
++            this.volumeCallback = null;
++            this.adjustVolumeCallback = null;
++            this.volumeEventLimiter = new EventLimiter_1.EventLimiter(types_1.EVENT_LIMIT_STATE);
++            this.registerRequestHandler(this.handleVolumeRequest.bind(this));
++        }
++        onVolume(callback) {
++            this.volumeCallback = callback;
++        }
++        onAdjustVolume(callback) {
++            this.adjustVolumeCallback = callback;
++        }
++        async sendVolumeEvent(volume, cause = types_1.PHYSICAL_INTERACTION) {
++            if (this.volumeEventLimiter.isLimited()) {
++                return false;
++            }
++            return this.sendEvent('setVolume', { volume }, cause);
++        }
++        async handleVolumeRequest(request) {
++            if (request.action === 'setVolume' && this.volumeCallback) {
++                const volume = request.requestValue.volume;
++                const result = await this.volumeCallback(this.getDeviceId(), volume);
++                // Handle both boolean and object return types
++                let success;
++                if (typeof result === 'boolean') {
++                    success = result;
++                }
++                else {
++                    success = result.success;
++                    if (result.message) {
++                        request.errorMessage = result.message;
++                    }
++                }
++                if (success) {
++                    request.responseValue.volume = volume;
++                }
++                return success;
++            }
++            if (request.action === 'adjustVolume' && this.adjustVolumeCallback) {
++                const volumeDelta = request.requestValue.volumeDelta;
++                const result = await this.adjustVolumeCallback(this.getDeviceId(), volumeDelta);
++                // Handle both boolean and object return types
++                let success;
++                if (typeof result === 'boolean') {
++                    success = result;
++                }
++                else {
++                    success = result.success;
++                    if (result.message) {
++                        request.errorMessage = result.message;
++                    }
++                }
++                if (success) {
++                    request.responseValue.volume = volumeDelta;
++                }
++                return success;
++            }
++            return false;
++        }
++    };
++}
++//# sourceMappingURL=VolumeController.js.map
+\ No newline at end of file
+diff --git a/node_modules/sinricpro/dist/capabilities/VolumeController.js b/node_modules/sinricpro/dist/capabilities/VolumeController.js
+index 9877eff..e28ad3d 100644
+--- a/node_modules/sinricpro/dist/capabilities/VolumeController.js
++++ b/node_modules/sinricpro/dist/capabilities/VolumeController.js
+@@ -4,71 +4,117 @@
+  */
+ Object.defineProperty(exports, "__esModule", { value: true });
+ exports.VolumeController = VolumeController;
++
+ const EventLimiter_1 = require("../core/EventLimiter");
+ const types_1 = require("../core/types");
++
+ function VolumeController(Base) {
+     return class extends Base {
+-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
++
+         constructor(...args) {
+             super(...args);
++
+             this.volumeCallback = null;
+             this.adjustVolumeCallback = null;
+-            this.volumeEventLimiter = new EventLimiter_1.EventLimiter(types_1.EVENT_LIMIT_STATE);
+-            this.registerRequestHandler(this.handleVolumeRequest.bind(this));
++
++            this.volumeEventLimiter =
++                new EventLimiter_1.EventLimiter(types_1.EVENT_LIMIT_STATE);
++
++            this.registerRequestHandler(
++                this.handleVolumeRequest.bind(this)
++            );
+         }
++
+         onVolume(callback) {
+             this.volumeCallback = callback;
+         }
++
+         onAdjustVolume(callback) {
+             this.adjustVolumeCallback = callback;
+         }
+-        async sendVolumeEvent(volume, cause = types_1.PHYSICAL_INTERACTION) {
+-            if (this.volumeEventLimiter.isLimited()) {
+-                return false;
+-            }
+-            return this.sendEvent('setVolume', { volume }, cause);
+-        }
++
+         async handleVolumeRequest(request) {
++
++            // Absolute volume: "set the receiver to 50 percent"
+             if (request.action === 'setVolume' && this.volumeCallback) {
++
+                 const volume = request.requestValue.volume;
+-                const result = await this.volumeCallback(this.getDeviceId(), volume);
+-                // Handle both boolean and object return types
++
++                console.log(
++                    '[SinricPro DEBUG] SET VOLUME:',
++                    volume
++                );
++
++                const result = await this.volumeCallback(
++                    this.getDeviceId(),
++                    volume
++                );
++
+                 let success;
++
+                 if (typeof result === 'boolean') {
+                     success = result;
+-                }
+-                else {
++                } else {
+                     success = result.success;
++
+                     if (result.message) {
+                         request.errorMessage = result.message;
+                     }
+                 }
++
+                 if (success) {
+                     request.responseValue.volume = volume;
+                 }
++
+                 return success;
+             }
+-            if (request.action === 'adjustVolume' && this.adjustVolumeCallback) {
+-                const volumeDelta = request.requestValue.volumeDelta;
+-                const result = await this.adjustVolumeCallback(this.getDeviceId(), volumeDelta);
+-                // Handle both boolean and object return types
++
++            // Relative volume: "turn the receiver down 5"
++            if (
++                request.action === 'adjustVolume' &&
++                this.adjustVolumeCallback
++            ) {
++
++                // Alexa sends the adjustment in requestValue.volume.
++                const volumeDelta = request.requestValue.volume;
++
++                console.log(
++                    '[SinricPro DEBUG] VOLUME DELTA:',
++                    volumeDelta
++                );
++
++                const result = await this.adjustVolumeCallback(
++                    this.getDeviceId(),
++                    volumeDelta
++                );
++
+                 let success;
++
+                 if (typeof result === 'boolean') {
+                     success = result;
+-                }
+-                else {
++                } else {
+                     success = result.success;
++
+                     if (result.message) {
+                         request.errorMessage = result.message;
+                     }
+                 }
++
+                 if (success) {
+                     request.responseValue.volume = volumeDelta;
+                 }
++
+                 return success;
+             }
++
++            console.log(
++                '[SinricPro DEBUG] No volume handler for action:',
++                request.action
++            );
++
+             return false;
+         }
+     };
+ }
++
+ //# sourceMappingURL=VolumeController.js.map
+\ No newline at end of file

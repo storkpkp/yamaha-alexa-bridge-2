@@ -1,0 +1,24 @@
+{
+  "name": "yamaha-alexa-bridge-2",
+  "version": "1.0.0",
+  "description": "Control Yamaha MusicCast receivers with Alexa voice commands via Sinric Pro",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "postinstall": "patch-package"
+  },
+  "keywords": [
+    "yamaha",
+    "musiccast",
+    "alexa",
+    "sinricpro",
+    "home-automation"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "sinricpro": "^5.1.0"
+  },
+  "devDependencies": {
+    "patch-package": "^8.0.1"
+  }
+}
