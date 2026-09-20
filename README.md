@@ -14,6 +14,7 @@ This project provides a bridge between Alexa, Sinric Pro, and the Yamaha Extende
 * Input/source selection
 * Support for Yamaha zones
 * Automatic Yamaha volume-scale conversion
+* Web-based receiver status dashboard
 * Optional Windows service installation
 * Runs on Windows, macOS, and Linux
 
@@ -66,12 +67,6 @@ Find your receiver's IP address and open:
 
 ```text
 http://YOUR_RECEIVER_IP/YamahaExtendedControl/v1/main/getStatus
-```
-
-For example:
-
-```text
-http://192.168.1.100/YamahaExtendedControl/v1/main/getStatus
 ```
 
 If the receiver returns JSON containing fields such as `power`, `volume`, and `input`, it is likely compatible with this bridge.
@@ -134,7 +129,7 @@ Example:
 ```json
 {
   "yamaha": {
-    "ip": "192.168.1.100",
+    "ip": "YOUR_RECEIVER_IP",
     "zone": "main"
   },
   "sinricpro": {
@@ -202,12 +197,40 @@ A successful startup should look similar to:
 
 ```text
 === Yamaha Alexa Bridge ===
-[Config] Receiver: 192.168.1.100 (main)
+
+[Config] Receiver: YOUR_RECEIVER_IP (main)
+
 [Yamaha] Connected. Power: on, Volume: 53/161, Input: hdmi1
+
 [SinricPro] Connected. Waiting for Alexa commands...
 ```
 
 The exact IP address, volume, and input will depend on your receiver.
+
+## Web Status Dashboard
+
+The bridge includes a built-in web dashboard for monitoring and controlling the Yamaha receiver.
+
+After starting the bridge, open:
+
+```text
+http://localhost:3000
+```
+
+The dashboard provides:
+
+* Yamaha connection status
+* Sinric Pro connection status
+* Receiver power status
+* Current volume
+* Volume slider
+* Volume increase/decrease controls
+* Mute control
+* Current input
+* Input selection
+* Command status
+
+The default dashboard port is `3000`. A different port can be configured using `statusPort` in `config.json`.
 
 ## Voice Commands
 
@@ -237,7 +260,7 @@ The exact Alexa phrasing may vary depending on the device name and Alexa's inter
 
 Yamaha receivers use their own internal volume scale rather than Alexa's 0–100 percentage scale.
 
-This bridge reads the receiver's reported maximum volume and converts Alexa's percentage to the Yamaha scale.
+The bridge reads the receiver's reported maximum volume and converts Alexa's percentage to the Yamaha scale.
 
 For a receiver reporting a maximum volume of 161:
 
@@ -278,7 +301,7 @@ The patch is located at:
 patches/sinricpro+5.1.0.patch
 ```
 
-The patch corrects volume request handling so Alexa's volume commands are passed correctly to the bridge.
+The patch corrects volume request handling so Alexa volume commands are passed correctly to the bridge.
 
 It supports both:
 
@@ -300,6 +323,7 @@ The project specifically uses Sinric Pro 5.1.0 because the included patch target
 | `yamaha.ip`           | IP address of the Yamaha receiver                             |
 | `yamaha.zone`         | Yamaha zone to control (`main`, `zone2`, `zone3`, or `zone4`) |
 | `yamaha.inputMap`     | Optional custom Alexa-to-Yamaha input mapping                 |
+| `statusPort`          | Optional web dashboard port; defaults to `3000`               |
 | `sinricpro.appKey`    | Sinric Pro App Key                                            |
 | `sinricpro.appSecret` | Sinric Pro App Secret                                         |
 | `sinricpro.deviceId`  | Sinric Pro device ID                                          |
@@ -315,7 +339,7 @@ Example:
 ```json
 {
   "yamaha": {
-    "ip": "192.168.1.100",
+    "ip": "YOUR_RECEIVER_IP",
     "zone": "main",
     "inputMap": {
       "Chromecast": "hdmi1",
@@ -447,7 +471,7 @@ Change the zone in `config.json`:
 ```json
 {
   "yamaha": {
-    "ip": "192.168.1.100",
+    "ip": "YOUR_RECEIVER_IP",
     "zone": "zone2"
   }
 }
@@ -502,7 +526,7 @@ npm install
 
 This project is based on the original Yamaha Alexa Bridge project by `afarmerinjapan`.
 
-This version includes additional functionality and fixes, including improved volume handling and compatibility with Sinric Pro 5.1.0.
+This version includes additional functionality and fixes, including improved volume handling, a web-based receiver dashboard, and compatibility with Sinric Pro 5.1.0.
 
 ## License
 
