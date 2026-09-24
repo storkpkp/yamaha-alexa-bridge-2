@@ -80,6 +80,47 @@ const bridgeStatus = {
   },
 };
 
+// --- Live Dashboard ---
+const dashboardClients = new Set();
+let lastBroadcastStatus = '';
+
+function getDashboardSnapshot() {
+  const y = bridgeStatus.yamaha;
+
+  return {
+    yamaha: {
+      connected: y.connected,
+      power: y.power,
+      volume: y.volume,
+      maxVolume: y.maxVolume,
+      input: y.input,
+      mute: y.mute,
+      error: y.error,
+    },
+    sinricPro: {
+      connected: bridgeStatus.sinricPro.connected,
+    },
+  };
+}
+
+function broadcastStatus() {
+  const snapshot = getDashboardSnapshot();
+  const status = JSON.stringify(snapshot);
+
+  if (status === lastBroadcastStatus) {
+    return;
+  }
+
+  lastBroadcastStatus = status;
+
+  for (const client of dashboardClients) {
+    try {
+      client.write(`data: ${status}\n\n`);
+    } catch (err) {
+      dashboardClients.delete(client);
+    }
+  }
+}
 // Map Alexa input names to Yamaha input IDs
 const INPUT_MAP = config.yamaha.inputMap || {
   'HDMI 1':     'hdmi1',
@@ -141,9 +182,31 @@ async function getYamahaStatus() {
   bridgeStatus.yamaha.lastUpdate = new Date().toISOString();
   bridgeStatus.yamaha.error = null;
 
+  broadcastStatus();
+
   return status;
 }
 
+let statusPollInProgress = false;
+
+async function pollYamahaStatus() {
+  if (statusPollInProgress) {
+    return;
+  }
+
+  statusPollInProgress = true;
+
+  try {
+    await getYamahaStatus();
+  } catch (err) {
+    bridgeStatus.yamaha.connected = false;
+    bridgeStatus.yamaha.error = err.message;
+
+    broadcastStatus();
+  } finally {
+    statusPollInProgress = false;
+  }
+}
 async function setYamahaPower(on) {
   const state = on ? 'on' : 'standby';
 
@@ -153,6 +216,8 @@ async function setYamahaPower(on) {
 
   bridgeStatus.yamaha.power = state === 'on' ? 'on' : 'standby';
   bridgeStatus.yamaha.lastUpdate = new Date().toISOString();
+
+  broadcastStatus();
 
   return result;
 }
@@ -169,6 +234,8 @@ async function setYamahaVolume(percent) {
   bridgeStatus.yamaha.maxVolume = maxVolume;
   bridgeStatus.yamaha.lastUpdate = new Date().toISOString();
 
+  broadcastStatus();
+
   return result;
 }
 
@@ -180,7 +247,7 @@ async function setYamahaMute(mute) {
   bridgeStatus.yamaha.mute = mute ? 'on' : 'off';
   bridgeStatus.yamaha.lastUpdate = new Date().toISOString();
 
-  //console.log(`[Yamaha] Mute -> ${mute}`);
+  broadcastStatus();
 
   return result;
 }
@@ -193,7 +260,7 @@ async function setYamahaInput(inputId) {
   bridgeStatus.yamaha.input = inputId;
   bridgeStatus.yamaha.lastUpdate = new Date().toISOString();
 
-  //console.log(`[Yamaha] Input -> ${inputId}`);
+  broadcastStatus();
 
   return result;
 }
@@ -309,6 +376,23 @@ function startStatusServer() {
     if (req.url === '/api/status' && req.method === 'GET') {
       return sendJson(res, 200, bridgeStatus);
     }
+    if (req.url === '/api/events' && req.method === 'GET') {
+      res.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+  });
+
+  res.write(`data: ${JSON.stringify(bridgeStatus)}\n\n`);
+
+  dashboardClients.add(res);
+
+  req.on('close', () => {
+    dashboardClients.delete(res);
+  });
+
+  return;
+}
     if (
       req.url.startsWith('/api/power') ||
       req.url.startsWith('/api/mute') ||
@@ -704,6 +788,80 @@ async function toggleMute() {
   document.getElementById('muteButton').textContent =
     newState === 'on' ? 'Unmute' : 'Mute';
 }
+function updateDashboardFromStatus(status) {
+  const yamaha = status.yamaha;
+
+  // Power
+  document.getElementById('powerStatus').textContent =
+    yamaha.power;
+
+  // Volume
+  if (
+    yamaha.volume !== null &&
+    yamaha.maxVolume
+  ) {
+    const percent =
+      (yamaha.volume / yamaha.maxVolume) * 100;
+
+    document.getElementById('volumeStatus').textContent =
+      yamaha.volume + ' / ' +
+      yamaha.maxVolume + ' (' +
+      Math.round(percent) + '%)';
+
+    document.getElementById('volumeValue').textContent =
+      Math.round(percent) + '%';
+
+    document.getElementById('volumeSlider').value =
+      Math.round(percent);
+
+  } else {
+    document.getElementById('volumeStatus').textContent =
+      'Unknown';
+
+    document.getElementById('volumeValue').textContent =
+      'Unknown';
+  }
+
+  // Mute
+  document.getElementById('muteStatus').textContent =
+    yamaha.mute;
+
+  document.getElementById('muteButton').textContent =
+    String(yamaha.mute).toLowerCase() === 'on'
+      ? 'Unmute'
+      : 'Mute';
+
+  // Input
+  document.getElementById('inputStatus').textContent =
+    yamaha.input;
+
+  // Yamaha connection
+  const yamahaConnection =
+    document.getElementById('yamahaConnection');
+
+  yamahaConnection.textContent =
+    yamaha.connected ? 'Connected' : 'Disconnected';
+
+  yamahaConnection.className =
+    yamaha.connected
+      ? 'connected'
+      : 'disconnected';
+
+  // Sinric Pro connection
+  const sinricConnection =
+    document.getElementById('sinricConnection');
+
+  sinricConnection.textContent =
+    status.sinricPro.connected
+      ? 'Connected'
+      : 'Disconnected';
+
+  sinricConnection.className =
+    status.sinricPro.connected
+      ? 'connected'
+      : 'disconnected';
+}
+
 async function updateDashboard() {
   try {
     const response = await fetch('/api/status', {
@@ -711,74 +869,8 @@ async function updateDashboard() {
     });
 
     const status = await response.json();
-    const yamaha = status.yamaha;
 
-    // Power
-    document.getElementById('powerStatus').textContent =
-      yamaha.power;
-
-    // Volume
-if (
-  yamaha.volume !== null &&
-  yamaha.maxVolume
-) {
-  const percent =
-    (yamaha.volume / yamaha.maxVolume) * 100;
-
-  document.getElementById('volumeStatus').textContent =
-    yamaha.volume + ' / ' +
-    yamaha.maxVolume + ' (' +
-    Math.round(percent) + '%)';
-
-  document.getElementById('volumeValue').textContent =
-    Math.round(percent) + '%';
-
-  document.getElementById('volumeSlider').value =
-    Math.round(percent);
-
-} else {
-  document.getElementById('volumeStatus').textContent =
-    'Unknown';
-
-  document.getElementById('volumeValue').textContent =
-    'Unknown';
-}
-  
-
-
-    // Mute
-    document.getElementById('muteStatus').textContent =
-      yamaha.mute;
-
-    // Input
-    document.getElementById('inputStatus').textContent =
-      yamaha.input;
-
-    // Yamaha connection
-    const yamahaConnection =
-      document.getElementById('yamahaConnection');
-
-    yamahaConnection.textContent =
-      yamaha.connected ? 'Connected' : 'Disconnected';
-
-    yamahaConnection.className =
-      yamaha.connected
-        ? 'connected'
-        : 'disconnected';
-
-    // Sinric Pro connection
-    const sinricConnection =
-      document.getElementById('sinricConnection');
-
-    sinricConnection.textContent =
-      status.sinricPro.connected
-        ? 'Connected'
-        : 'Disconnected';
-
-    sinricConnection.className =
-      status.sinricPro.connected
-        ? 'connected'
-        : 'disconnected';
+    updateDashboardFromStatus(status);
 
   } catch (err) {
     console.error(
@@ -787,8 +879,15 @@ if (
     );
   }
 }
+
 updateDashboard();
-// setInterval(updateDashboard, 2000);
+
+const events = new EventSource('/api/events');
+
+events.onmessage = (event) => {
+  const status = JSON.parse(event.data);
+  updateDashboardFromStatus(status);
+};
 
 function updateVolumeDisplay(value) {
   document.getElementById('volumeValue').textContent =
@@ -900,10 +999,12 @@ setVolumeFromSlider(newPercent).catch(err => {
   });
 
   server.listen(STATUS_PORT, '0.0.0.0', () => {
-    console.log(
-      `[Status] Status page available at http://localhost:${STATUS_PORT}`
-    );
-  });
+  console.log(
+    `[Status] Status page available at http://localhost:${STATUS_PORT}`
+  );
+
+  setInterval(pollYamahaStatus, 2000);
+});
 }
 // --- Main ---
 async function main() {
@@ -1070,11 +1171,15 @@ receiver.onAdjustVolume(async (deviceId, delta) => {
   SinricPro.onConnected(() => {
   bridgeStatus.sinricPro.connected = true;
 
+  broadcastStatus();
+
   logSinric('Connected. Waiting for Alexa commands...');
 });
 
 SinricPro.onDisconnected(() => {
   bridgeStatus.sinricPro.connected = false;
+
+  broadcastStatus();
 
   logError('[SinricPro] Disconnected. Will reconnect automatically...');
 });
