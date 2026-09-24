@@ -4,6 +4,33 @@ const http = require('http');
 const path = require('path');
 const fs = require('fs');
 
+// --- Terminal Colors ---
+const COLORS = {
+  reset: '\x1b[0m',
+  red: '\x1b[31m',
+  green: '\x1b[32m',
+  yellow: '\x1b[33m',
+  blue: '\x1b[34m',
+  magenta: '\x1b[35m',
+  cyan: '\x1b[36m',
+  bold: '\x1b[1m',
+};
+
+function logAlexa(message) {
+  console.log(`${COLORS.magenta}[Alexa] ${message}${COLORS.reset}`);
+}
+
+function logYamaha(message) {
+  console.log(`${COLORS.green}[Yamaha] ${message}${COLORS.reset}`);
+}
+
+function logSinric(message) {
+  console.log(`${COLORS.cyan}[SinricPro] ${message}${COLORS.reset}`);
+}
+
+function logError(message) {
+  console.error(`${COLORS.red}${message}${COLORS.reset}`);
+}
 // --- Load Configuration ---
 const configPath = path.join(__dirname, 'config.json');
 
@@ -79,36 +106,25 @@ const INPUT_MAP = config.yamaha.inputMap || {
 function yamahaGet(apiPath) {
   const url = `http://${YAMAHA_IP}/YamahaExtendedControl/v1${apiPath}`;
 
-  console.log(`[Yamaha API] GET ${url}`);
-
   return new Promise((resolve, reject) => {
     http.get(url, (res) => {
       let data = '';
-
-      console.log(`[Yamaha API] HTTP status: ${res.statusCode}`);
 
       res.on('data', (chunk) => {
         data += chunk;
       });
 
       res.on('end', () => {
-        console.log(`[Yamaha API] Raw response: ${data}`);
-
         try {
           const parsed = JSON.parse(data);
-
-          console.log('[Yamaha API] Parsed response:', parsed);
-
           resolve(parsed);
         } catch (e) {
-          console.error('[Yamaha API] JSON parse failed:', e.message);
-          console.error('[Yamaha API] Raw data:', data);
-
+          logError(`[Yamaha API] JSON parse failed: ${e.message}`);
           reject(new Error(`Bad response from receiver: ${data}`));
         }
       });
     }).on('error', (err) => {
-      console.error(`[Yamaha API] Request failed: ${err.message}`);
+      logError(`[Yamaha API] Request failed: ${err.message}`);
       reject(err);
     });
   });
@@ -138,8 +154,6 @@ async function setYamahaPower(on) {
   bridgeStatus.yamaha.power = state === 'on' ? 'on' : 'standby';
   bridgeStatus.yamaha.lastUpdate = new Date().toISOString();
 
-  console.log(`[Yamaha] Power -> ${state}`);
-
   return result;
 }
 
@@ -155,10 +169,6 @@ async function setYamahaVolume(percent) {
   bridgeStatus.yamaha.maxVolume = maxVolume;
   bridgeStatus.yamaha.lastUpdate = new Date().toISOString();
 
-  console.log(
-    `[Yamaha] Volume -> ${percent}% (raw: ${volume}/${maxVolume})`
-  );
-
   return result;
 }
 
@@ -170,7 +180,7 @@ async function setYamahaMute(mute) {
   bridgeStatus.yamaha.mute = mute ? 'on' : 'off';
   bridgeStatus.yamaha.lastUpdate = new Date().toISOString();
 
-  console.log(`[Yamaha] Mute -> ${mute}`);
+  //console.log(`[Yamaha] Mute -> ${mute}`);
 
   return result;
 }
@@ -183,14 +193,14 @@ async function setYamahaInput(inputId) {
   bridgeStatus.yamaha.input = inputId;
   bridgeStatus.yamaha.lastUpdate = new Date().toISOString();
 
-  console.log(`[Yamaha] Input -> ${inputId}`);
+  //console.log(`[Yamaha] Input -> ${inputId}`);
 
   return result;
 }
 
 async function setYamahaPlayback(action) {
   const result = await yamahaGet(`/netusb/setPlayback?playback=${action}`);
-  console.log(`[Yamaha] Playback -> ${action}`);
+  //console.log(`[Yamaha] Playback -> ${action}`);
   return result;
 }
 function sendJson(res, statusCode, data) {
@@ -903,8 +913,28 @@ async function main() {
 
   // Test Yamaha connection
   try {
-    const status = await getYamahaStatus();
-    console.log(`[Yamaha] Connected. Power: ${status.power}, Volume: ${status.volume}/${status.max_volume}, Input: ${status.input}`);
+const status = await getYamahaStatus();
+
+logYamaha('Connected');
+console.log(`  Power:          ${status.power}`);
+console.log(`  Volume:         ${status.volume} / ${status.max_volume}`);
+console.log(`  Input:          ${status.input} (${status.input_text || 'Unknown'})`);
+console.log(`  Mute:           ${status.mute}`);
+console.log(`  Sound Program:  ${status.sound_program || 'Unknown'}`);
+console.log(`  Decoder:        ${status.surr_decoder_type || 'Unknown'}`);
+console.log(`  Pure Direct:    ${status.pure_direct ?? 'Unknown'}`);
+console.log(`  Enhancer:       ${status.enhancer ?? 'Unknown'}`);
+console.log(`  Extra Bass:     ${status.extra_bass ?? 'Unknown'}`);
+console.log(`  Adaptive DRC:   ${status.adaptive_drc ?? 'Unknown'}`);
+
+if (status.tone_control) {
+  console.log(
+    `  Tone:           Bass ${status.tone_control.bass}, ` +
+    `Treble ${status.tone_control.treble}`
+  );
+}
+
+console.log(`  Subwoofer:      ${status.subwoofer_volume ?? 'Unknown'}`);
   } catch (err) {
     console.error(`[Yamaha] Cannot reach receiver at ${YAMAHA_IP}: ${err.message}`);
     process.exit(1);
@@ -915,34 +945,35 @@ async function main() {
 
   // Power on/off
   receiver.onPowerState(async (deviceId, state) => {
-    console.log(`[Alexa] Power: ${state ? 'ON' : 'OFF'}`);
+    logAlexa(`Power: ${state ? 'ON' : 'OFF'}`);
     try {
       await setYamahaPower(state);
       return true;
     } catch (err) {
-      console.error('[Alexa] Power failed:', err.message);
+      logError(`[Alexa] Power failed: ${err.message}`);
       return false;
     }
   });
 
   // Set volume (0-100)
 receiver.onVolume(async (deviceId, volume) => {
-  console.log(`[Alexa] Set volume: ${volume}%`);
+  logAlexa(`Set volume: ${volume}%`);
 
   try {
     await setYamahaVolume(Number(volume));
     return true;
   } catch (err) {
-    console.error('[Alexa] Set volume failed:', err.message);
+    logError(`[Alexa] Set volume failed: ${err.message}`);
     return false;
   }
 });
 
-console.log('[DEBUG] onVolume registered:', typeof receiver.volumeCallback);
 
-  // Adjust volume (relative)
- receiver.onAdjustVolume(async (deviceId, delta) => {
-  console.log(`[Alexa] Volume adjust: ${delta > 0 ? '+' : ''}${delta}`);
+// Adjust volume (relative)
+receiver.onAdjustVolume(async (deviceId, delta) => {
+  logAlexa(
+    `Volume adjust: ${delta > 0 ? '+' : ''}${delta}`
+  );
 
   try {
     const adjustment = Number(delta);
@@ -969,34 +1000,29 @@ console.log('[DEBUG] onVolume registered:', typeof receiver.volumeCallback);
       `/${YAMAHA_ZONE}/setVolume?volume=${newVolume}`
     );
 
-    console.log(
-      `[Yamaha] Volume -> ${newVolume}/${maxVolume} ` +
-      `(adjustment: ${adjustment > 0 ? '+' : ''}${adjustment})`
-    );
-
     return true;
 
   } catch (err) {
-    console.error('[Alexa] Volume adjust failed:', err.message);
+    logError(`[Alexa] Volume adjust failed: ${err.message}`);
     return false;
   }
 });
 
   // Mute/unmute
   receiver.onMute(async (deviceId, mute) => {
-    console.log(`[Alexa] Mute: ${mute}`);
+    logAlexa(`Mute: ${mute}`);
     try {
       await setYamahaMute(mute);
       return true;
     } catch (err) {
-      console.error('[Alexa] Mute failed:', err.message);
+      logError(`[Alexa] Mute failed: ${err.message}`);
       return false;
     }
   });
 
   // Media controls (play, pause, stop, next, previous)
   receiver.onMediaControl(async (deviceId, control) => {
-    console.log(`[Alexa] Media: ${control}`);
+    logAlexa(`Media: ${control}`);
     try {
       const controlMap = {
         'Play':           'play',
@@ -1012,17 +1038,17 @@ console.log('[DEBUG] onVolume registered:', typeof receiver.volumeCallback);
         await setYamahaPlayback(action);
         return true;
       }
-      console.log(`[Alexa] Unknown media control: ${control}`);
+      logError(`[Alexa] Unknown media control: ${control}`);
       return false;
     } catch (err) {
-      console.error('[Alexa] Media control failed:', err.message);
+      logError(`[Alexa] Media control failed: ${err.message}`);
       return false;
     }
   });
 
   // Input selection
   receiver.onSelectInput(async (deviceId, input) => {
-    console.log(`[Alexa] Input: ${input}`);
+    logAlexa(`Input: ${input}`);
     try {
       // Try exact match in input map first, then case-insensitive search
       let yamahaInput = INPUT_MAP[input];
@@ -1033,7 +1059,7 @@ console.log('[DEBUG] onVolume registered:', typeof receiver.volumeCallback);
       await setYamahaInput(yamahaInput);
       return true;
     } catch (err) {
-      console.error('[Alexa] Input switch failed:', err.message);
+      logError(`[Alexa] Input switch failed: ${err.message}`);
       return false;
     }
   });
@@ -1044,13 +1070,13 @@ console.log('[DEBUG] onVolume registered:', typeof receiver.volumeCallback);
   SinricPro.onConnected(() => {
   bridgeStatus.sinricPro.connected = true;
 
-  console.log('[SinricPro] Connected. Waiting for Alexa commands...');
+  logSinric('Connected. Waiting for Alexa commands...');
 });
 
 SinricPro.onDisconnected(() => {
   bridgeStatus.sinricPro.connected = false;
 
-  console.log('[SinricPro] Disconnected. Will reconnect automatically...');
+  logError('[SinricPro] Disconnected. Will reconnect automatically...');
 });
 
   await SinricPro.begin({ appKey: APP_KEY, appSecret: APP_SECRET });
