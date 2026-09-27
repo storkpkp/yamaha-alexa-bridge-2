@@ -179,6 +179,29 @@ The exact IP address, volume, and input will depend on your receiver.
 ```text
 Alexa, turn on Receiver
 ```
+## Running as a Windows Service
+
+The repository includes Windows service installation scripts for users who want the bridge to run automatically in the background.
+
+### Requirements
+
+The included service scripts use **NSSM (Non-Sucking Service Manager)**.
+
+1. Download NSSM.
+2. Extract `nssm.exe`.
+3. Place `nssm.exe` in the project directory or add it to your system PATH.
+4. Right-click `install-service.bat`.
+5. Select **Run as Administrator**.
+
+The service will run the Yamaha Alexa Bridge automatically.
+
+To remove the service, right-click `uninstall-service.bat` and select **Run as Administrator**.
+
+Service output is written to:
+
+```text
+service.log
+```
 
 ## macOS Automatic Startup
 
@@ -540,29 +563,7 @@ Change the zone in `config.json`:
 
 The supported zone names depend on the receiver.
 
-## Running as a Windows Service
 
-The repository includes Windows service installation scripts for users who want the bridge to run automatically in the background.
-
-### Requirements
-
-The included service scripts use **NSSM (Non-Sucking Service Manager)**.
-
-1. Download NSSM.
-2. Extract `nssm.exe`.
-3. Place `nssm.exe` in the project directory or add it to your system PATH.
-4. Right-click `install-service.bat`.
-5. Select **Run as Administrator**.
-
-The service will run the Yamaha Alexa Bridge automatically.
-
-To remove the service, right-click `uninstall-service.bat` and select **Run as Administrator**.
-
-Service output is written to:
-
-```text
-service.log
-```
 
 ## Security
 
