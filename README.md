@@ -180,6 +180,133 @@ The exact IP address, volume, and input will depend on your receiver.
 Alexa, turn on Receiver
 ```
 
+## macOS Automatic Startup
+
+The repository includes an installer that configures the bridge to start automatically when you log in to macOS and restart automatically if the process exits unexpectedly. It uses a macOS `LaunchAgent`, so no third-party service manager is required.
+
+### Automatic Installation
+
+From the project directory:
+
+```bash
+chmod +x install-macos-service.sh
+./install-macos-service.sh
+```
+
+The installer automatically:
+
+- Detects the project directory
+- Detects the installed `npm` path
+- Creates the LaunchAgent configuration
+- Validates the generated plist
+- Loads the LaunchAgent for your user account
+- Configures the bridge to start automatically at login
+- Configures `KeepAlive` so the bridge is restarted if it stops unexpectedly
+- Creates log files under `~/Library/Logs/YamahaAlexaBridge/`
+
+### Verify the Service
+
+Check the LaunchAgent status with:
+
+```bash
+launchctl print gui/$(id -u)/com.yamaha-alexa-bridge
+```
+
+You can also check the process with:
+
+```bash
+launchctl list | grep yamaha
+```
+
+### View Logs
+
+Bridge output:
+
+```bash
+tail -f ~/Library/Logs/YamahaAlexaBridge/bridge.log
+```
+
+Error output:
+
+```bash
+tail -f ~/Library/Logs/YamahaAlexaBridge/error.log
+```
+
+### Manual LaunchAgent Installation
+
+If you prefer to configure the service manually, create:
+
+```text
+~/Library/LaunchAgents/com.yamaha-alexa-bridge.plist
+```
+
+Use absolute paths for both the project directory and `npm`. You can find them with:
+
+```bash
+pwd
+which npm
+```
+
+Example:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.yamaha-alexa-bridge</string>
+
+    <key>WorkingDirectory</key>
+    <string>/PATH/TO/yamaha-alexa-bridge</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/PATH/TO/npm</string>
+        <string>start</string>
+    </array>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string>/Users/YOUR_USERNAME/Library/Logs/YamahaAlexaBridge/bridge.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/Users/YOUR_USERNAME/Library/Logs/YamahaAlexaBridge/error.log</string>
+</dict>
+</plist>
+```
+
+Create the log directory before loading the agent:
+
+```bash
+mkdir -p ~/Library/Logs/YamahaAlexaBridge
+```
+
+Validate the plist:
+
+```bash
+plutil -lint ~/Library/LaunchAgents/com.yamaha-alexa-bridge.plist
+```
+
+Load it:
+
+```bash
+launchctl load ~/Library/LaunchAgents/com.yamaha-alexa-bridge.plist
+```
+
+To stop and unload it:
+
+```bash
+launchctl unload ~/Library/LaunchAgents/com.yamaha-alexa-bridge.plist
+```
+
+`launchd` does not expand `~` inside plist paths, so use full absolute paths in the plist.
+
 ## Voice Commands
 
 | Alexa Command | Function |
@@ -249,6 +376,65 @@ npm install
 ```
 
 The patch specifically targets **Sinric Pro 5.1.0**. Do not upgrade that package without checking whether the patch is still required and compatible.
+
+## Receiver Status Dashboard
+
+The bridge includes a built-in web dashboard for monitoring and controlling the receiver.
+
+By default, the dashboard is available at:
+
+```text
+http://localhost:3000
+```
+
+The port can be changed with the optional `statusPort` setting in `config.json`.
+
+The dashboard provides:
+
+- Yamaha connection status
+- Sinric Pro connection status
+- Receiver power state
+- Current volume and maximum volume
+- Current input
+- Mute state
+- Power controls
+- Volume slider and volume adjustment buttons
+- Mute control
+- Input selection
+
+The dashboard receives live receiver status updates without requiring a browser refresh. Physical remote-control changes are reflected automatically.
+
+## Configuration
+
+The bridge is configured through `config.json`. Do not commit this file because it contains your Sinric Pro credentials and local network information.
+
+| Setting | Description |
+|---|---|
+| `yamaha.ip` | IP address of the Yamaha receiver |
+| `yamaha.zone` | Yamaha zone to control (`main`, `zone2`, `zone3`, or `zone4`) |
+| `yamaha.inputMap` | Optional custom Alexa-to-Yamaha input mapping |
+| `sinricpro.appKey` | Sinric Pro App Key |
+| `sinricpro.appSecret` | Sinric Pro App Secret |
+| `sinricpro.deviceId` | Sinric Pro device ID |
+
+Example configuration:
+
+```json
+{
+  "yamaha": {
+    "ip": "192.168.0.75",
+    "zone": "main",
+    "inputMap": {
+      "Chromecast": "hdmi1"
+    }
+  },
+  "sinricpro": {
+    "appKey": "your-app-key-here",
+    "appSecret": "your-app-secret-here",
+    "deviceId": "your-device-id-here"
+  }
+}
+```
 
 ## Input Mapping
 
@@ -354,11 +540,58 @@ Change the zone in `config.json`:
 
 The supported zone names depend on the receiver.
 
+## Running as a Windows Service
+
+The repository includes Windows service installation scripts for users who want the bridge to run automatically in the background.
+
+### Requirements
+
+The included service scripts use **NSSM (Non-Sucking Service Manager)**.
+
+1. Download NSSM.
+2. Extract `nssm.exe`.
+3. Place `nssm.exe` in the project directory or add it to your system PATH.
+4. Right-click `install-service.bat`.
+5. Select **Run as Administrator**.
+
+The service will run the Yamaha Alexa Bridge automatically.
+
+To remove the service, right-click `uninstall-service.bat` and select **Run as Administrator**.
+
+Service output is written to:
+
+```text
+service.log
+```
+
 ## Security
 
 **Never commit your real `config.json` to GitHub.**
 
 It contains your Sinric Pro credentials and local network information. The repository's `.gitignore` is configured to exclude this file.
+
+## Project Structure
+
+```text
+yamaha-alexa-bridge/
+├── index.js
+├── config.example.json
+├── package.json
+├── patches/
+│   └── sinricpro+5.1.0.patch
+├── install-macos-service.sh
+├── install-service.bat
+├── uninstall-service.bat
+└── README.md
+```
+
+`node_modules` is intentionally excluded from the repository and is created automatically by `npm install`.
+
+## Credits
+
+- Yamaha Extended Control API for receiver control
+- Sinric Pro for Alexa device integration
+- `patch-package` for maintaining the Sinric Pro 5.1.0 compatibility patch
 
 ## License
 
