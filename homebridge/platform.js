@@ -34,8 +34,9 @@ class YamahaAlexaBridgePlatform {
 
     new YamahaAccessory(this, accessory);
 
-    this.api.publishExternalAccessories(
+    this.api.registerPlatformAccessories(
       'homebridge-yamaha-alexa-bridge',
+      'YamahaAlexaBridge',
       [accessory]
     );
   }
