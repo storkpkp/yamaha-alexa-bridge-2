@@ -1,13 +1,15 @@
 {
-  "name": "yamaha-alexa-bridge-2",
+  "name": "homebridge-yamaha-alexa-bridge",
   "version": "1.0.0",
-  "description": "Control Yamaha MusicCast receivers with Alexa voice commands via Sinric Pro",
-  "main": "index.js",
+  "description": "Control Yamaha MusicCast receivers with HomeKit, Siri, and Alexa",
+  "main": "homebridge/index.js",
   "scripts": {
     "start": "node index.js",
     "postinstall": "patch-package"
   },
   "keywords": [
+    "homebridge-plugin",
+    "supports-hap",
     "yamaha",
     "musiccast",
     "alexa",
@@ -20,5 +22,9 @@
   },
   "devDependencies": {
     "patch-package": "^8.0.1"
+  },
+  "displayName": "Yamaha Alexa Bridge",
+  "engines": {
+    "node": ">=22.0.0"
   }
 }
