@@ -3,22 +3,25 @@
 const YamahaController = require('../lib/yamaha');
 
 class YamahaAccessory {
-  constructor(log, config, api) {
-    this.log = log;
-    this.config = config || {};
-    this.api = api;
+  constructor(platform, accessory) {
+    this.log = platform.log;
+    this.api = platform.api;
+    this.Service = platform.Service;
+    this.Characteristic = platform.Characteristic;
 
-    this.Service = api.hap.Service;
-    this.Characteristic = api.hap.Characteristic;
-
-    this.name = this.config.name || 'Yamaha Receiver';
+    this.accessory = accessory;
+    this.name = accessory.context.device.name;
 
     this.yamaha = new YamahaController({
-      ip: this.config.ip,
-      zone: this.config.zone || 'main',
+      ip: accessory.context.device.ip,
+      zone: accessory.context.device.zone,
     });
 
-    this.informationService = new this.Service.AccessoryInformation()
+    this.informationService = this.accessory.getService(
+      this.Service.AccessoryInformation
+    );
+
+    this.informationService
       .setCharacteristic(
         this.Characteristic.Manufacturer,
         'Yamaha'
@@ -28,10 +31,12 @@ class YamahaAccessory {
         'MusicCast Receiver'
       );
 
-    this.televisionService = new this.Service.Television(
-      this.name,
-      'YamahaTelevision'
-    );
+    this.televisionService =
+      this.accessory.getService(this.Service.Television) ||
+      this.accessory.addService(
+        this.Service.Television,
+        this.name
+      );
 
     this.televisionService.setCharacteristic(
       this.Characteristic.ConfiguredName,
@@ -72,14 +77,9 @@ class YamahaAccessory {
           .updateValue(actualState);
       });
 
-    this.log.info(`Yamaha receiver configured: ${this.name}`);
-  }
-
-  getServices() {
-    return [
-      this.informationService,
-      this.televisionService,
-    ];
+    this.log.info(
+      `Yamaha receiver configured: ${this.name}`
+    );
   }
 }
 
