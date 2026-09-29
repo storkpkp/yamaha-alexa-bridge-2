@@ -34,6 +34,8 @@ class YamahaAlexaBridgePlatform {
       (cached) => cached.UUID === uuid
     );
 
+    const isNewAccessory = !accessory;
+
     if (!accessory) {
       accessory = new this.api.platformAccessory(
         this.config.name || 'Yamaha Receiver',
@@ -45,15 +47,17 @@ class YamahaAlexaBridgePlatform {
         zone: this.config.zone || 'main',
         name: this.config.name || 'Yamaha Receiver',
       };
+    }
 
+    new YamahaAccessory(this, accessory);
+
+    if (isNewAccessory) {
       this.api.registerPlatformAccessories(
         'homebridge-yamaha-alexa-bridge',
         'YamahaAlexaBridge',
         [accessory]
       );
     }
-
-    new YamahaAccessory(this, accessory);
   }
 }
 

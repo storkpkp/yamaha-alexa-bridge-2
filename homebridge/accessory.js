@@ -69,10 +69,98 @@ class YamahaAccessory {
       await this.syncPowerState();
     });
 
+    this.televisionSpeakerService =
+      this.accessory.getService(this.Service.TelevisionSpeaker) ||
+      this.accessory.addService(
+        this.Service.TelevisionSpeaker,
+        `${this.name} Volume`
+      );
+
+    this.televisionService.addLinkedService(
+      this.televisionSpeakerService
+    );
+
+    this.televisionSpeakerService.addOptionalCharacteristic(
+      this.Characteristic.Volume
+    );
+
+    this.televisionSpeakerService.addOptionalCharacteristic(
+      this.Characteristic.VolumeSelector
+    );
+
+    this.televisionSpeakerService.addOptionalCharacteristic(
+      this.Characteristic.VolumeControlType
+    );
+
+    this.volumeCharacteristic =
+      this.televisionSpeakerService.getCharacteristic(
+        this.Characteristic.Volume
+      );
+
+    this.volumeCharacteristic.onGet(async () => {
+      const status = await this.yamaha.getStatus();
+
+      const volume = Number(status.volume);
+      const maxVolume = Number(
+        status.max_volume || this.yamaha.maxVolume
+      );
+
+      if (!Number.isFinite(volume) || !Number.isFinite(maxVolume) || maxVolume <= 0) {
+        throw new Error('Invalid Yamaha volume status');
+      }
+
+      return Math.round((volume / maxVolume) * 100);
+    });
+
+    this.volumeCharacteristic.onSet(async (value) => {
+      const volume = Number(value);
+
+      if (!Number.isFinite(volume)) {
+        throw new Error(`Invalid HomeKit volume: ${value}`);
+      }
+
+      this.log.info(
+        `Volume: ${Math.round(volume)}%`
+      );
+
+      await this.yamaha.setVolume(volume);
+    });
+
+    this.volumeSelectorCharacteristic =
+      this.televisionSpeakerService.getCharacteristic(
+        this.Characteristic.VolumeSelector
+      );
+
+    this.volumeSelectorCharacteristic.onSet(async (value) => {
+      const direction =
+        Number(value) === 0 ? 5 : -5;
+
+      this.log.info(
+        `Volume: ${direction > 0 ? '+' : ''}${direction}`
+      );
+
+      await this.yamaha.adjustVolume(direction);
+
+      await this.syncVolumeState();
+    });
+
+    this.volumeControlTypeCharacteristic =
+      this.televisionSpeakerService.getCharacteristic(
+        this.Characteristic.VolumeControlType
+      );
+
+    this.volumeControlTypeCharacteristic.updateValue(
+      this.Characteristic.VolumeControlType.ABSOLUTE
+    );
+
     this.syncPowerState();
+    this.syncVolumeState();
 
     this.pollTimer = setInterval(
-      () => this.syncPowerState(),
+      () => {
+        this.syncPowerState();
+        this.syncVolumeState();
+      },
       5000
     );
 
@@ -107,6 +195,33 @@ class YamahaAccessory {
     } catch (error) {
       this.log.warn(
         `Power state sync failed: ${error.message}`
+      );
+    }
+  }
+
+  async syncVolumeState() {
+    try {
+      const status = await this.yamaha.getStatus();
+
+      const volume = Number(status.volume);
+      const maxVolume = Number(
+        status.max_volume || this.yamaha.maxVolume
+      );
+
+      if (!Number.isFinite(volume) || !Number.isFinite(maxVolume) || maxVolume <= 0) {
+        throw new Error('Invalid Yamaha volume status');
+      }
+
+      const actualVolume = Math.round(
+        (volume / maxVolume) * 100
+      );
+
+      if (this.volumeCharacteristic.value !== actualVolume) {
+        this.volumeCharacteristic.updateValue(actualVolume);
+      }
+    } catch (error) {
+      this.log.warn(
+        `Volume state sync failed: ${error.message}`
       );
     }
   }
