@@ -43,14 +43,25 @@ class YamahaAccessory {
       this.name
     );
 
-    this.televisionService
-      .getCharacteristic(this.Characteristic.Active)
-      .onGet(async () => {
-        const status = await this.yamaha.getStatus();
+  this.televisionService
+    .getCharacteristic(this.Characteristic.Active)
+    .onSet(async (value) => {
+      const isOn =
+        value === this.Characteristic.Active.ACTIVE;
 
-        return status.power === 'on'
-          ? this.Characteristic.Active.ACTIVE
-          : this.Characteristic.Active.INACTIVE;
+      this.log.info(
+        `Power: ${isOn ? 'ON' : 'OFF'}`
+        );
+
+      await this.yamaha.setPower(isOn);
+
+      this.televisionService
+        .getCharacteristic(this.Characteristic.Active)
+        .updateValue(
+          isOn
+            ? this.Characteristic.Active.ACTIVE
+            : this.Characteristic.Active.INACTIVE
+        );
       });
 
     this.televisionService
