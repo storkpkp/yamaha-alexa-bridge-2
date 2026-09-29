@@ -3,25 +3,22 @@
 const YamahaController = require('../lib/yamaha');
 
 class YamahaAccessory {
-  constructor(platform, accessory) {
-    this.log = platform.log;
-    this.api = platform.api;
-    this.Service = platform.Service;
-    this.Characteristic = platform.Characteristic;
+  constructor(log, config, api) {
+    this.log = log;
+    this.config = config || {};
+    this.api = api;
 
-    this.accessory = accessory;
-    this.name = accessory.context.device.name;
+    this.Service = api.hap.Service;
+    this.Characteristic = api.hap.Characteristic;
+
+    this.name = this.config.name || 'Yamaha Receiver';
 
     this.yamaha = new YamahaController({
-      ip: accessory.context.device.ip,
-      zone: accessory.context.device.zone,
+      ip: this.config.ip,
+      zone: this.config.zone || 'main',
     });
 
-    this.informationService = this.accessory.getService(
-      this.Service.AccessoryInformation
-    );
-
-    this.informationService
+    this.informationService = new this.Service.AccessoryInformation()
       .setCharacteristic(
         this.Characteristic.Manufacturer,
         'Yamaha'
@@ -31,17 +28,25 @@ class YamahaAccessory {
         'MusicCast Receiver'
       );
 
-    this.televisionService =
-      this.accessory.getService(this.Service.Television) ||
-      this.accessory.addService(
-        this.Service.Television,
-        this.name
-      );
+    this.televisionService = new this.Service.Television(
+      this.name,
+      'YamahaTelevision'
+    );
 
     this.televisionService.setCharacteristic(
       this.Characteristic.ConfiguredName,
       this.name
     );
+
+    this.televisionService
+      .getCharacteristic(this.Characteristic.Active)
+      .onGet(async () => {
+        const status = await this.yamaha.getStatus();
+
+        return status.power === 'on'
+          ? this.Characteristic.Active.ACTIVE
+          : this.Characteristic.Active.INACTIVE;
+      });
 
     this.televisionService
       .getCharacteristic(this.Characteristic.Active)
@@ -67,20 +72,14 @@ class YamahaAccessory {
           .updateValue(actualState);
       });
 
-    this.televisionService
-      .getCharacteristic(this.Characteristic.Active)
-      .onSet(async (value) => {
-        const isOn =
-          value === this.Characteristic.Active.ACTIVE;
-
-        this.log.info(
-          `Power: ${isOn ? 'ON' : 'OFF'}`
-        );
-
-        await this.yamaha.setPower(isOn);
-      });
-
     this.log.info(`Yamaha receiver configured: ${this.name}`);
+  }
+
+  getServices() {
+    return [
+      this.informationService,
+      this.televisionService,
+    ];
   }
 }
 
