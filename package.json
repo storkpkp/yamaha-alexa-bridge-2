@@ -25,6 +25,7 @@
   },
   "displayName": "Yamaha Alexa Bridge",
   "engines": {
-    "node": ">=22.0.0"
-  }
+  "node": ">=22.0.0",
+  "homebridge": ">=2.0.0"
+}
 }
