@@ -1,0 +1,5 @@
+homebridge/accessory.js.power-working
+homebridge/platform.js.before-sinric
+index.js.sinric-working
+install-service.bat
+uninstall-service.bat

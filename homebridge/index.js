@@ -1,5 +1,9 @@
 'use strict';
 
 module.exports = (api) => {
-  api.registerPlatform('YamahaAlexaBridge', require('./platform'));
+  api.registerPlatform(
+    'homebridge-yamaha-alexa-bridge',
+    'YamahaAlexaBridge',
+    require('./platform')
+  );
 };
