@@ -7,8 +7,14 @@ class YamahaAlexaBridgePlatform {
     this.log = log;
     this.config = config || {};
     this.api = api;
+    this.Service = api.hap.Service;
+    this.Characteristic = api.hap.Characteristic;
 
     this.cachedAccessories = [];
+
+    this.api.on('didFinishLaunching', () => {
+      this.didFinishLaunching();
+    });
   }
 
   configureAccessory(accessory) {

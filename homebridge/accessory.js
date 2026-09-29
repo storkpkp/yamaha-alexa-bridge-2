@@ -43,43 +43,79 @@ class YamahaAccessory {
       this.name
     );
 
-    this.televisionService
-      .getCharacteristic(this.Characteristic.Active)
-      .onGet(async () => {
-        const status = await this.yamaha.getStatus();
+    this.activeCharacteristic =
+      this.televisionService.getCharacteristic(
+        this.Characteristic.Active
+      );
 
-        return status.power === 'on'
-          ? this.Characteristic.Active.ACTIVE
-          : this.Characteristic.Active.INACTIVE;
-      });
+    this.activeCharacteristic.onGet(async () => {
+      const status = await this.yamaha.getStatus();
 
-    this.televisionService
-      .getCharacteristic(this.Characteristic.Active)
-      .onSet(async (value) => {
-        const isOn =
-          value === this.Characteristic.Active.ACTIVE;
+      return status.power === 'on'
+        ? this.Characteristic.Active.ACTIVE
+        : this.Characteristic.Active.INACTIVE;
+    });
 
-        this.log.info(
-          `Power: ${isOn ? 'ON' : 'OFF'}`
-        );
+    this.activeCharacteristic.onSet(async (value) => {
+      const isOn =
+        value === this.Characteristic.Active.ACTIVE;
 
-        await this.yamaha.setPower(isOn);
+      this.log.info(
+        `Power: ${isOn ? 'ON' : 'OFF'}`
+      );
 
-        const status = await this.yamaha.getStatus();
+      await this.yamaha.setPower(isOn);
 
-        const actualState =
-          status.power === 'on'
-            ? this.Characteristic.Active.ACTIVE
-            : this.Characteristic.Active.INACTIVE;
+      await this.syncPowerState();
+    });
 
-        this.televisionService
-          .getCharacteristic(this.Characteristic.Active)
-          .updateValue(actualState);
-      });
+    this.syncPowerState();
+
+    this.pollTimer = setInterval(
+      () => this.syncPowerState(),
+      5000
+    );
 
     this.log.info(
       `Yamaha receiver configured: ${this.name}`
     );
+  }
+
+  async syncPowerState() {
+    try {
+      const status = await this.yamaha.getStatus();
+
+      const actualState =
+        status.power === 'on'
+          ? this.Characteristic.Active.ACTIVE
+          : this.Characteristic.Active.INACTIVE;
+
+      const currentState =
+        this.activeCharacteristic.value;
+
+      if (currentState !== actualState) {
+        this.log.info(
+          `Power state sync: ${
+            actualState === this.Characteristic.Active.ACTIVE
+              ? 'ON'
+              : 'OFF'
+          }`
+        );
+
+        this.activeCharacteristic.updateValue(actualState);
+      }
+    } catch (error) {
+      this.log.warn(
+        `Power state sync failed: ${error.message}`
+      );
+    }
+  }
+
+  shutdown() {
+    if (this.pollTimer) {
+      clearInterval(this.pollTimer);
+      this.pollTimer = null;
+    }
   }
 }
 
