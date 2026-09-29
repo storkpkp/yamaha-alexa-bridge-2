@@ -10,13 +10,9 @@ class YamahaAlexaBridgePlatform {
 
     this.Service = api.hap.Service;
     this.Characteristic = api.hap.Characteristic;
-
-    this.api.on('didFinishLaunching', () => {
-      this.addAccessory();
-    });
   }
 
-  addAccessory() {
+  accessories(callback) {
     const uuid = this.api.hap.uuid.generate(
       `yamaha:${this.config.ip}:${this.config.zone || 'main'}`
     );
@@ -34,11 +30,7 @@ class YamahaAlexaBridgePlatform {
 
     new YamahaAccessory(this, accessory);
 
-    this.api.registerPlatformAccessories(
-      'homebridge-yamaha-alexa-bridge',
-      'YamahaAlexaBridge',
-      [accessory]
-    );
+    callback([accessory]);
   }
 }
 
