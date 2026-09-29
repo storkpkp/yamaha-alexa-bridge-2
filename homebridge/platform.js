@@ -8,9 +8,8 @@ class YamahaAlexaBridgePlatform {
     this.config = config || {};
     this.api = api;
 
-    if (!api) {
-      return;
-    }
+    this.Service = api.hap.Service;
+    this.Characteristic = api.hap.Characteristic;
 
     this.api.on('didFinishLaunching', () => {
       this.addAccessory();
@@ -18,11 +17,22 @@ class YamahaAlexaBridgePlatform {
   }
 
   addAccessory() {
-    const accessory = new YamahaAccessory(
-      this.log,
-      this.config,
-      this.api
+    const uuid = this.api.hap.uuid.generate(
+      `yamaha:${this.config.ip}:${this.config.zone || 'main'}`
     );
+
+    const accessory = new this.api.platformAccessory(
+      this.config.name || 'Yamaha Receiver',
+      uuid
+    );
+
+    accessory.context.device = {
+      ip: this.config.ip,
+      zone: this.config.zone || 'main',
+      name: this.config.name || 'Yamaha Receiver',
+    };
+
+    new YamahaAccessory(this, accessory);
 
     this.api.publishExternalAccessories(
       'YamahaAlexaBridge',
