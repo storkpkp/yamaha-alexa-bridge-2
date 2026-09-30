@@ -45,6 +45,24 @@
             "minLength": 1
           }
         }
+      },
+      "dashboard": {
+        "title": "Web Dashboard",
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "title": "Enable Dashboard",
+            "type": "boolean",
+            "default": true
+          },
+          "port": {
+            "title": "Dashboard Port",
+            "type": "integer",
+            "default": 8080,
+            "minimum": 1,
+            "maximum": 65535
+          }
+        }
       }
     },
     "required": [

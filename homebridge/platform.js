@@ -3,6 +3,7 @@
 const YamahaAccessory = require('./accessory');
 const YamahaController = require('../lib/yamaha');
 const createSinricPro = require('../lib/sinricpro');
+const createDashboard = require('../lib/dashboard');
 
 class YamahaAlexaBridgePlatform {
   constructor(log, config, api) {
@@ -15,9 +16,30 @@ class YamahaAlexaBridgePlatform {
     this.cachedAccessories = [];
     this.yamaha = null;
     this.sinricPro = null;
+    this.dashboard = null;
+
+    this.bridgeStatus = {
+      yamaha: {
+        connected: false,
+        power: 'Unknown',
+        volume: null,
+        maxVolume: null,
+        input: 'Unknown',
+        mute: 'Unknown',
+        lastUpdate: null,
+        error: null,
+      },
+      sinricPro: {
+        connected: false,
+      },
+    };
 
     this.api.on('didFinishLaunching', () => {
       this.didFinishLaunching();
+    });
+
+    this.api.on('shutdown', () => {
+      this.shutdown();
     });
   }
 
@@ -29,6 +51,19 @@ class YamahaAlexaBridgePlatform {
     this.cachedAccessories.push(accessory);
   }
 
+  async shutdown() {
+    if (this.dashboard) {
+      try {
+        await this.dashboard.stop();
+        this.log.info('Dashboard stopped.');
+      } catch (error) {
+        this.log.error(
+          `Dashboard shutdown failed: ${error.message}`
+        );
+      }
+    }
+  }
+
   didFinishLaunching() {
     const zone = this.config.zone || 'main';
 
@@ -37,6 +72,45 @@ class YamahaAlexaBridgePlatform {
       ip: this.config.ip,
       zone,
     });
+
+    if (this.config.dashboard?.enabled !== false) {
+      this.log.info('Initializing dashboard...');
+
+      this.dashboard = createDashboard({
+        yamaha: this.yamaha,
+        bridgeStatus: this.bridgeStatus,
+        log: this.log,
+        port: this.config.dashboard?.port || 8080,
+        inputMap: this.config.inputMap || {
+          'HDMI 1': 'hdmi1',
+          'HDMI 2': 'hdmi2',
+          'HDMI 3': 'hdmi3',
+          'HDMI 4': 'hdmi4',
+          'AV 1': 'av1',
+          'AV 2': 'av2',
+          'AV 3': 'av3',
+          'AUX': 'aux',
+          'AUDIO 1': 'audio1',
+          'AUDIO 2': 'audio2',
+          'AUDIO 3': 'audio3',
+          'USB': 'usb',
+          'Bluetooth': 'bluetooth',
+          'Spotify': 'spotify',
+          'AirPlay': 'airplay',
+          'TUNER': 'tuner',
+          'NET RADIO': 'net_radio',
+          'Server': 'server',
+        },
+        yamahaIp: this.config.ip,
+        yamahaZone: zone,
+      });
+
+      this.dashboard.start().catch((error) => {
+        this.log.error(
+          `Dashboard startup failed: ${error.message}`
+        );
+      });
+    }
 
     const uuid = this.api.hap.uuid.generate(
       `yamaha:${this.config.ip}:${zone}`
@@ -87,9 +161,13 @@ class YamahaAlexaBridgePlatform {
 
         inputMap: this.config.inputMap || {},
 
-        bridgeStatus,
+        bridgeStatus: this.bridgeStatus,
 
-        broadcastStatus: () => {},
+        broadcastStatus: () => {
+          if (this.dashboard) {
+            this.dashboard.broadcastStatus();
+          }
+        },
 
         logAlexa: (message) => {
           this.log.info(message);
