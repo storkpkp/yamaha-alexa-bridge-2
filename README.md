@@ -1,35 +1,39 @@
 # Yamaha Alexa Bridge
 
-Control compatible Yamaha network receivers with Amazon Alexa voice commands using [Sinric Pro](https://sinric.pro/).
+Control compatible Yamaha network receivers with **HomeKit, Siri, Amazon Alexa, and the Yamaha Extended Control (YXC) API**.
 
-This project provides a bridge between Alexa, Sinric Pro, and the Yamaha Extended Control (YXC) API. It was created as an alternative for controlling Yamaha receivers after Yamaha's native Alexa integration was deprecated.
+The project originally provided a standalone Alexa/Sinric Pro bridge. It now also includes a Homebridge plugin that hosts the Sinric Pro Alexa integration and exposes the Yamaha receiver to HomeKit.
 
-## Features
+## Current Architecture
 
-- Power on/off
-- Absolute volume control
-- Relative volume adjustments
-- Mute/unmute
-- Play, pause, stop, next, and previous
-- Input/source selection
-- Support for Yamaha zones
-- Automatic Yamaha volume-scale conversion
-- Live receiver status dashboard
-- Automatic macOS startup using a LaunchAgent installer
-- Optional Windows service installation
-- Runs on Windows, macOS, and Linux
+### Homebridge mode
 
-### Alexa Volume Commands
+Homebridge is the host process for the Yamaha Alexa Bridge:
 
-Examples:
+```text
+                    Homebridge
+                        |
+              Yamaha Alexa Bridge
+                        |
+              +---------+---------+
+              |                   |
+           HomeKit             SinricPro
+              |                   |
+          Apple Home              Alexa
+              |                   |
+              +---------+---------+
+                        |
+                 YamahaController
+                        |
+                        v
+                 Yamaha Receiver
+```
 
-- "Alexa, set Receiver volume to 50"
-- "Alexa, turn Receiver up"
-- "Alexa, turn Receiver down"
-- "Alexa, turn Receiver down 5"
-- "Alexa, turn Receiver up 5"
+Both HomeKit/Siri and Alexa use the shared `YamahaController` to communicate with the receiver.
 
-## How It Works
+### Standalone mode
+
+The original standalone application remains available through `index.js`:
 
 ```text
 Alexa
@@ -37,26 +41,74 @@ Alexa
   v
 Sinric Pro Cloud
   |
-  | WebSocket
   v
-Yamaha Alexa Bridge
+index.js
   |
-  | HTTP / Yamaha Extended Control API
+  +---- Web Dashboard
+  |
   v
 Yamaha Receiver
 ```
 
-The bridge runs as a Node.js application on a computer on your local network.
+The standalone application is useful for the original non-Homebridge deployment and remains available for rollback/reference.
 
-Alexa sends commands through Sinric Pro. The bridge receives those commands and translates them into commands understood by the Yamaha receiver through the Yamaha Extended Control API.
+> **Current development direction:** Homebridge is the preferred host for the combined HomeKit + Alexa integration.
 
-The computer running the bridge must remain powered on and connected to the Internet for Alexa commands to work.
+## Features
+
+### Homebridge
+
+- HomeKit/Siri receiver power control
+- HomeKit/Siri volume control
+- Yamaha receiver status synchronization
+- Homebridge UI configuration
+- Sinric Pro/Alexa hosted by the Homebridge plugin
+- Shared Yamaha controller between HomeKit and Alexa
+- Homebridge plugin installation through npm
+- Homebridge-compatible platform registration
+
+### Alexa / Sinric Pro
+
+- Power on/off
+- Absolute volume control
+- Relative volume adjustments
+- Mute/unmute
+- Play, pause, stop, next, and previous
+- Input/source selection
+- Yamaha zone support
+- Automatic Yamaha volume-scale conversion
+- Sinric Pro WebSocket connection/reconnection
+
+### Standalone application
+
+- Live receiver status dashboard
+- Power controls
+- Volume slider and adjustment controls
+- Mute control
+- Input selection
+- Live status updates
+- macOS automatic startup support
+- Optional Windows service installation
+
+## Alexa Volume Commands
+
+Examples:
+
+```text
+Alexa, set Receiver volume to 50
+Alexa, turn Receiver up
+Alexa, turn Receiver down
+Alexa, turn Receiver down 5
+Alexa, turn Receiver up 5
+```
+
+Relative volume commands use the receiver's current Yamaha volume and apply the requested adjustment.
 
 ## Compatibility
 
 The bridge is designed for Yamaha network receivers that support the Yamaha Extended Control (YXC) API.
 
-Many MusicCast-enabled Yamaha receivers are compatible, including network-enabled models in the following families:
+Many MusicCast-enabled Yamaha receivers are compatible, including network-enabled models in families such as:
 
 - RX-V series
 - RX-A series
@@ -76,72 +128,144 @@ For example:
 http://192.168.1.100/YamahaExtendedControl/v1/main/getStatus
 ```
 
-If the receiver returns JSON containing power, volume, and input information, the receiver is likely compatible with the bridge.
+If the receiver returns JSON containing power, volume, and input information, it is likely compatible with the bridge.
 
 ## Prerequisites
 
-- **Node.js 18 or later**
-- **A computer that stays on** — Windows, macOS, or Linux
-- **Receiver and computer on the same local network**
-- **Sinric Pro account**
-- **Amazon Alexa** with the Sinric Pro skill
+### Standalone mode
 
-## Setup
+- Node.js 18 or later
+- Windows, macOS, or Linux computer
+- Receiver and computer on the same local network
+- Sinric Pro account
+- Amazon Alexa with the Sinric Pro skill
 
-### Step 1: Create a Sinric Pro Device
+### Homebridge mode
+
+- Homebridge 2.x
+- Node.js 22 or later
+- Homebridge UI
+- Compatible Yamaha receiver
+- Sinric Pro account/device for Alexa functionality
+
+The Homebridge plugin can be installed from npm as:
+
+```text
+homebridge-yamaha-alexa-bridge
+```
+
+## Homebridge Installation
+
+The published Homebridge package is available on npm.
+
+In Homebridge UI:
+
+1. Open **Plugins**.
+2. Search for **Yamaha Alexa Bridge**.
+3. Install `homebridge-yamaha-alexa-bridge`.
+4. Add the Yamaha Alexa Bridge platform.
+5. Enter the Yamaha receiver information.
+6. Enter the Sinric Pro credentials if Alexa control is desired.
+7. Save the configuration.
+8. Restart Homebridge if requested.
+
+The plugin configuration is generated by `config.schema.json`.
+
+### Homebridge Configuration
+
+The Homebridge UI configuration corresponds to:
+
+```json
+{
+  "name": "Yamaha Receiver",
+  "ip": "192.168.1.100",
+  "zone": "main",
+  "platform": "YamahaAlexaBridge",
+  "sinricpro": {
+    "appKey": "your-app-key",
+    "appSecret": "your-app-secret",
+    "deviceId": "your-device-id"
+  }
+}
+```
+
+Do not commit real Sinric Pro credentials to GitHub.
+
+### HomeKit
+
+After the plugin is installed and configured, Homebridge exposes the Yamaha receiver to HomeKit.
+
+Current HomeKit functionality includes:
+
+- Power
+- Volume
+- Volume adjustment
+- Receiver status synchronization
+
+The Apple Home application may present volume controls differently depending on the HomeKit service layout and Apple Home UI version.
+
+### Alexa
+
+In Homebridge mode, the plugin starts the Sinric Pro connection automatically.
+
+Alexa commands continue to use the same Sinric Pro device and credentials as the standalone application.
+
+For example:
+
+```text
+Alexa, turn on Receiver
+Alexa, turn Receiver up 5
+Alexa, set Receiver volume to 50
+Alexa, mute Receiver
+```
+
+## Sinric Pro Setup
 
 1. Sign in to Sinric Pro.
 2. Go to **Devices** and select **Add Device**.
 3. Set the device type to **TV**.
 4. Give the device a name Alexa will use, such as `Receiver`, `Stereo`, or `Yamaha`.
 5. Save the device and copy the **Device ID**.
-6. Go to **Credentials** and create or retrieve your **App Key** and **App Secret**.
+6. Go to **Credentials** and create or retrieve the **App Key** and **App Secret**.
 
-### Step 2: Link Sinric Pro to Alexa
+### Link Sinric Pro to Alexa
 
 1. Open the Alexa app.
 2. Go to **More → Skills & Games**.
 3. Search for **Sinric Pro**.
-4. Enable the skill and sign in with your Sinric Pro account.
+4. Enable the skill and sign in.
 5. Say:
 
 ```text
 Alexa, discover my devices
 ```
 
-Alexa should discover the Sinric Pro device you created.
+Alexa should discover the Sinric Pro device.
 
-### Step 3: Find Your Receiver's IP Address
+## Standalone Installation
 
-Check your router's admin page for connected devices, or look in your receiver's network settings menu.
-
-**Important:** Assign a static IP or DHCP reservation for your receiver so its IP address does not change.
-
-### Step 4: Install the Bridge
-
-1. Download or clone this repository.
-2. Open Terminal or Command Prompt in the project directory.
-3. Install dependencies:
+The original standalone application is started with:
 
 ```bash
 npm install
+npm start
 ```
 
-4. Copy the example configuration:
+Create the configuration from the example:
 
-macOS/Linux:
+### macOS/Linux
 
 ```bash
 cp config.example.json config.json
 ```
 
-Windows:
+### Windows
 
 ```cmd
 copy config.example.json config.json
 ```
 
-5. Edit `config.json` with your settings:
+Example:
 
 ```json
 {
@@ -157,13 +281,13 @@ copy config.example.json config.json
 }
 ```
 
-6. Start the bridge:
+Start the bridge:
 
 ```bash
 npm start
 ```
 
-A successful startup should look similar to:
+A successful startup should contain messages similar to:
 
 ```text
 === Yamaha Alexa Bridge ===
@@ -172,163 +296,196 @@ A successful startup should look similar to:
 [SinricPro] Connected. Waiting for Alexa commands...
 ```
 
-The exact IP address, volume, and input will depend on your receiver.
+The exact values depend on the receiver.
 
-7. Try a voice command:
+## Standalone Dashboard
 
-```text
-Alexa, turn on Receiver
-```
-## Running as a Windows Service
+The original standalone `index.js` includes a web dashboard.
 
-The repository includes Windows service installation scripts for users who want the bridge to run automatically in the background.
-
-### Requirements
-
-The included service scripts use **NSSM (Non-Sucking Service Manager)**.
-
-1. Download NSSM.
-2. Extract `nssm.exe`.
-3. Place `nssm.exe` in the project directory or add it to your system PATH.
-4. Right-click `install-service.bat`.
-5. Select **Run as Administrator**.
-
-The service will run the Yamaha Alexa Bridge automatically.
-
-To remove the service, right-click `uninstall-service.bat` and select **Run as Administrator**.
-
-Service output is written to:
+By default:
 
 ```text
-service.log
+http://localhost:3000
 ```
 
-## macOS Automatic Startup
+The dashboard provides:
 
-The repository includes an installer that configures the bridge to start automatically when you log in to macOS and restart automatically if the process exits unexpectedly. It uses a macOS `LaunchAgent`, so no third-party service manager is required.
+- Yamaha connection status
+- Sinric Pro connection status
+- Receiver power state
+- Current volume and maximum volume
+- Current input
+- Mute state
+- Power controls
+- Volume slider and adjustment buttons
+- Mute control
+- Input selection
+- Live status updates
 
-### Automatic Installation
+The standalone dashboard is currently **not part of the Homebridge plugin UI**.
 
-From the project directory:
+### Dashboard Roadmap
 
-```bash
-chmod +x install-macos-service.sh
-./install-macos-service.sh
-```
-
-The installer automatically:
-
-- Detects the project directory
-- Detects the installed `npm` path
-- Creates the LaunchAgent configuration
-- Validates the generated plist
-- Loads the LaunchAgent for your user account
-- Configures the bridge to start automatically at login
-- Configures `KeepAlive` so the bridge is restarted if it stops unexpectedly
-- Creates log files under `~/Library/Logs/YamahaAlexaBridge/`
-
-### Verify the Service
-
-Check the LaunchAgent status with:
-
-```bash
-launchctl print gui/$(id -u)/com.yamaha-alexa-bridge
-```
-
-You can also check the process with:
-
-```bash
-launchctl list | grep yamaha
-```
-
-### View Logs
-
-Bridge output:
-
-```bash
-tail -f ~/Library/Logs/YamahaAlexaBridge/bridge.log
-```
-
-Error output:
-
-```bash
-tail -f ~/Library/Logs/YamahaAlexaBridge/error.log
-```
-
-### Manual LaunchAgent Installation
-
-If you prefer to configure the service manually, create:
+The dashboard is planned to be migrated into the Homebridge-hosted architecture so that the project can provide:
 
 ```text
-~/Library/LaunchAgents/com.yamaha-alexa-bridge.plist
+Homebridge
+  |
+  +-- HomeKit / Siri
+  |
+  +-- Sinric Pro / Alexa
+  |
+  +-- Yamaha control
+  |
+  +-- Web dashboard
 ```
 
-Use absolute paths for both the project directory and `npm`. You can find them with:
+Until that migration is complete, the dashboard remains part of the standalone `index.js` application.
 
-```bash
-pwd
-which npm
-```
+## Volume Mapping
+
+Yamaha receivers use an internal volume scale, typically `0-161`.
+
+The bridge converts Alexa/HomeKit percentage values to the Yamaha receiver's native scale.
 
 Example:
 
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>Label</key>
-    <string>com.yamaha-alexa-bridge</string>
+| Alexa Volume | Approx. Yamaha Volume |
+|---:|---:|
+| 20% | 32/161 |
+| 30% | 48/161 |
+| 50% | 81/161 |
+| 100% | 161/161 |
 
-    <key>WorkingDirectory</key>
-    <string>/PATH/TO/yamaha-alexa-bridge</string>
+The controller reads the receiver's reported maximum volume when available.
 
-    <key>ProgramArguments</key>
-    <array>
-        <string>/PATH/TO/npm</string>
-        <string>start</string>
-    </array>
+### Relative Volume
 
-    <key>RunAtLoad</key>
-    <true/>
+Relative commands use the receiver's current volume.
 
-    <key>KeepAlive</key>
-    <true/>
+For example:
 
-    <key>StandardOutPath</key>
-    <string>/Users/YOUR_USERNAME/Library/Logs/YamahaAlexaBridge/bridge.log</string>
-
-    <key>StandardErrorPath</key>
-    <string>/Users/YOUR_USERNAME/Library/Logs/YamahaAlexaBridge/error.log</string>
-</dict>
-</plist>
+```text
+Alexa, turn Receiver down 5
 ```
 
-Create the log directory before loading the agent:
+If the receiver is currently at:
+
+```text
+50/161
+```
+
+the bridge sends:
+
+```text
+45/161
+```
+
+The value is automatically constrained to the receiver's valid range.
+
+## Sinric Pro 5.1.0 Compatibility Patch
+
+The project includes a `patch-package` patch for Sinric Pro 5.1.0:
+
+```text
+patches/sinricpro+5.1.0.patch
+```
+
+The patch corrects volume request handling so Alexa volume commands are passed correctly to the bridge.
+
+It supports:
+
+- Absolute volume commands (`setVolume`)
+- Relative volume commands (`adjustVolume`)
+
+The patch is applied during installation through:
 
 ```bash
-mkdir -p ~/Library/Logs/YamahaAlexaBridge
+npm install
 ```
 
-Validate the plist:
+The patch specifically targets **Sinric Pro 5.1.0**.
 
-```bash
-plutil -lint ~/Library/LaunchAgents/com.yamaha-alexa-bridge.plist
+Do not upgrade the Sinric Pro package without checking whether the patch is still required and compatible.
+
+## Configuration
+
+### Standalone configuration
+
+The standalone application uses `config.json`.
+
+Do not commit this file because it contains Sinric Pro credentials and local network information.
+
+Example:
+
+```json
+{
+  "yamaha": {
+    "ip": "192.168.0.75",
+    "zone": "main",
+    "inputMap": {
+      "Chromecast": "hdmi1"
+    }
+  },
+  "sinricpro": {
+    "appKey": "your-app-key-here",
+    "appSecret": "your-app-secret-here",
+    "deviceId": "your-device-id-here"
+  }
+}
 ```
 
-Load it:
+| Setting | Description |
+|---|---|
+| `yamaha.ip` | IP address of the Yamaha receiver |
+| `yamaha.zone` | Yamaha zone (`main`, `zone2`, `zone3`, or `zone4`) |
+| `yamaha.inputMap` | Optional Alexa-to-Yamaha input mapping |
+| `sinricpro.appKey` | Sinric Pro App Key |
+| `sinricpro.appSecret` | Sinric Pro App Secret |
+| `sinricpro.deviceId` | Sinric Pro device ID |
 
-```bash
-launchctl load ~/Library/LaunchAgents/com.yamaha-alexa-bridge.plist
+### Homebridge configuration
+
+Homebridge configuration is normally entered through Homebridge UI.
+
+The plugin schema supports:
+
+- Receiver name
+- Receiver IP address
+- Yamaha zone
+- Sinric Pro App Key
+- Sinric Pro App Secret
+- Sinric Pro Device ID
+
+## Input Mapping
+
+The bridge maps Alexa input names to Yamaha input IDs.
+
+Example:
+
+```json
+{
+  "yamaha": {
+    "ip": "192.168.0.75",
+    "zone": "main",
+    "inputMap": {
+      "Chromecast": "hdmi1"
+    }
+  }
+}
 ```
 
-To stop and unload it:
+Then:
 
-```bash
-launchctl unload ~/Library/LaunchAgents/com.yamaha-alexa-bridge.plist
+```text
+Alexa, switch Receiver input to Chromecast
 ```
 
-`launchd` does not expand `~` inside plist paths, so use full absolute paths in the plist.
+The Yamaha API can be queried for available input names using:
+
+```text
+http://YOUR_RECEIVER_IP/YamahaExtendedControl/v1/system/getNameText
+```
 
 ## Voice Commands
 
@@ -352,130 +509,158 @@ launchctl unload ~/Library/LaunchAgents/com.yamaha-alexa-bridge.plist
 | "Alexa, switch Receiver input to Spotify" | Switches to Spotify |
 | "Alexa, switch Receiver input to Bluetooth" | Switches to Bluetooth |
 
-## Volume Mapping
+## Automatic Startup
 
-Yamaha receivers use an internal volume scale, typically `0-161`. The bridge reads the receiver's reported maximum volume and converts Alexa's percentage to the Yamaha scale.
+### macOS
 
-| Alexa Volume | Approx. Yamaha Volume |
-|---:|---:|
-| 20% | 32/161 |
-| 30% | 48/161 |
-| 50% | 81/161 |
-| 100% | 161/161 |
+The standalone application can be configured to run automatically with a macOS LaunchAgent.
 
-### Relative Volume
-
-Relative commands use the receiver's current volume and apply the requested adjustment.
-
-For example:
-
-```text
-Alexa, turn Receiver down 5
-```
-
-If the receiver is currently at `50/161`, the bridge sends `45/161`. The volume is automatically limited to the receiver's valid range.
-
-## Sinric Pro 5.1.0 Volume Compatibility
-
-This project includes a `patch-package` patch for Sinric Pro 5.1.0.
-
-The patch is located at:
-
-```text
-patches/sinricpro+5.1.0.patch
-```
-
-The patch corrects volume request handling so Alexa volume commands are passed correctly to the bridge.
-
-It supports both:
-
-- Absolute volume commands (`setVolume`)
-- Relative volume commands (`adjustVolume`)
-
-The patch is automatically applied when dependencies are installed:
+If the repository contains the macOS service installer, use:
 
 ```bash
-npm install
+chmod +x install-macos-service.sh
+./install-macos-service.sh
 ```
 
-The patch specifically targets **Sinric Pro 5.1.0**. Do not upgrade that package without checking whether the patch is still required and compatible.
+The LaunchAgent approach can:
 
-## Receiver Status Dashboard
+- Start the bridge at login
+- Restart it if it exits
+- Create persistent log files
 
-The bridge includes a built-in web dashboard for monitoring and controlling the receiver.
+Verify with:
 
-By default, the dashboard is available at:
+```bash
+launchctl print gui/$(id -u)/com.yamaha-alexa-bridge
+```
+
+or:
+
+```bash
+launchctl list | grep yamaha
+```
+
+Logs:
+
+```bash
+tail -f ~/Library/Logs/YamahaAlexaBridge/bridge.log
+```
+
+```bash
+tail -f ~/Library/Logs/YamahaAlexaBridge/error.log
+```
+
+> **Note:** The macOS service installer is part of the historical standalone deployment documentation. The Homebridge plugin should normally be managed by Homebridge rather than by a separate LaunchAgent.
+
+### Windows
+
+The original repository includes optional Windows service scripts for standalone deployments using NSSM.
+
+The Windows service scripts are:
 
 ```text
-http://localhost:3000
+install-service.bat
+uninstall-service.bat
 ```
 
-The port can be changed with the optional `statusPort` setting in `config.json`.
+They are not part of the Homebridge npm package.
 
-The dashboard provides:
+## Project Branches
 
-- Yamaha connection status
-- Sinric Pro connection status
-- Receiver power state
-- Current volume and maximum volume
-- Current input
-- Mute state
-- Power controls
-- Volume slider and volume adjustment buttons
-- Mute control
-- Input selection
+The repository currently has three important branches:
 
-The dashboard receives live receiver status updates without requiring a browser refresh. Physical remote-control changes are reflected automatically.
-
-## Configuration
-
-The bridge is configured through `config.json`. Do not commit this file because it contains your Sinric Pro credentials and local network information.
-
-| Setting | Description |
+| Branch | Purpose |
 |---|---|
-| `yamaha.ip` | IP address of the Yamaha receiver |
-| `yamaha.zone` | Yamaha zone to control (`main`, `zone2`, `zone3`, or `zone4`) |
-| `yamaha.inputMap` | Optional custom Alexa-to-Yamaha input mapping |
-| `sinricpro.appKey` | Sinric Pro App Key |
-| `sinricpro.appSecret` | Sinric Pro App Secret |
-| `sinricpro.deviceId` | Sinric Pro device ID |
+| `main` | Original/stable standalone Yamaha Alexa Bridge |
+| `homebridge-development` | Current Homebridge plugin development |
+| `homebridge-integration` | Earlier Homebridge integration work |
 
-Example configuration:
+### `homebridge-development`
 
-```json
-{
-  "yamaha": {
-    "ip": "192.168.0.75",
-    "zone": "main",
-    "inputMap": {
-      "Chromecast": "hdmi1"
-    }
-  },
-  "sinricpro": {
-    "appKey": "your-app-key-here",
-    "appSecret": "your-app-secret-here",
-    "deviceId": "your-device-id-here"
-  }
-}
+This is the current active Homebridge development branch.
+
+It contains:
+
+- Homebridge platform
+- HomeKit accessory implementation
+- Shared Yamaha controller
+- Sinric Pro integration hosted by Homebridge
+- Homebridge UI configuration schema
+- npm packaging configuration
+
+### `homebridge-integration`
+
+This branch contains earlier Homebridge integration work and is retained for development history/reference.
+
+### `main`
+
+This branch contains the original standalone architecture and remains the safest rollback/reference point for the standalone application.
+
+## Development Workflow
+
+Recommended workflow:
+
+```text
+Mac
+ |
+ | git push
+ v
+GitHub
+ |
+ | git pull
+ v
+Homebridge VM
+ |
+ | test
+ v
+Homebridge
 ```
 
-## Input Mapping
+The Homebridge VM is used for integration testing.
 
-The bridge maps Alexa input names to Yamaha input IDs. The default map covers common inputs. To customize, add an `inputMap` to your `config.json`:
+The Mac development checkout is used for ongoing code development and Git operations.
 
-```json
-{
-  "yamaha": {
-    "ip": "192.168.0.75",
-    "zone": "main",
-    "inputMap": {
-      "Chromecast": "hdmi1"
-    }
-  }
-}
+### Check branch
+
+```bash
+git branch -a
 ```
 
-Then say: "Alexa, switch Receiver input to Chromecast"
+### Check status
+
+```bash
+git status
+```
+
+### Fetch GitHub
+
+```bash
+git fetch origin
+```
+
+### Update the current branch safely
+
+```bash
+git pull --ff-only origin homebridge-development
+```
+
+### Push changes
+
+```bash
+git push origin homebridge-development
+```
+
+## npm Package
+
+The Homebridge plugin is published as:
+
+```text
+homebridge-yamaha-alexa-bridge
+```
+
+The package can be installed by Homebridge UI or with npm.
+
+The package contains the Homebridge plugin and required runtime components. Development backup files and standalone Windows service scripts are excluded from the npm package.
 
 ## Troubleshooting
 
@@ -483,9 +668,11 @@ Then say: "Alexa, switch Receiver input to Chromecast"
 
 Check:
 
-- The IP address in `config.json`
-- The receiver is connected to the network
-- The computer running the bridge is on the same network
+- Receiver IP address
+- Receiver network connection
+- Computer/Homebridge host network connection
+- Yamaha zone
+- Receiver firewall/network isolation settings
 
 Test the Yamaha API directly:
 
@@ -493,64 +680,44 @@ Test the Yamaha API directly:
 http://YOUR_RECEIVER_IP/YamahaExtendedControl/v1/main/getStatus
 ```
 
-### `config.json` Not Found
-
-Create it from the example:
-
-macOS/Linux:
-
-```bash
-cp config.example.json config.json
-```
-
-Windows:
-
-```cmd
-copy config.example.json config.json
-```
-
-Then enter your Yamaha and Sinric Pro settings.
-
 ### Alexa Says the Device Is Not Responding
 
 Check:
 
-1. The bridge is running.
+1. Homebridge or the standalone bridge is running.
 2. Sinric Pro shows the device as connected.
-3. The App Key and App Secret are correct.
-4. The Device ID is correct.
+3. App Key and App Secret are correct.
+4. Device ID is correct.
 5. The Sinric Pro Alexa skill is enabled.
 6. Alexa has discovered the correct device.
 
 ### Volume Commands Do Not Work
 
-Make sure the project dependencies were installed from the repository:
+For the standalone application or development checkout:
 
 ```bash
 npm install
 ```
 
-The Sinric Pro 5.1.0 compatibility patch should be automatically applied during installation.
+The Sinric Pro 5.1.0 compatibility patch should be applied automatically.
 
-Verify that the patch exists:
+Verify:
 
 ```text
 patches/sinricpro+5.1.0.patch
 ```
 
+For Homebridge installations, verify that the installed plugin version contains the compatible Sinric Pro integration.
+
 ### Input Switching Does Not Work
 
-Check your `inputMap` and make sure the Alexa input name matches the configured mapping.
+Check the configured `inputMap`.
 
-The Yamaha API can be queried for available input names using:
-
-```text
-http://YOUR_RECEIVER_IP/YamahaExtendedControl/v1/system/getNameText
-```
+The Alexa input name must resolve to a valid Yamaha input ID.
 
 ### Zone 2 / Zone 3 / Zone 4
 
-Change the zone in `config.json`:
+Change the zone to the appropriate Yamaha zone:
 
 ```json
 {
@@ -561,37 +728,149 @@ Change the zone in `config.json`:
 }
 ```
 
-The supported zone names depend on the receiver.
+Supported zones depend on the receiver.
 
+### HomeKit Does Not Show the Receiver
 
+Check:
+
+1. Homebridge is running.
+2. The Yamaha Alexa Bridge platform is configured.
+3. The receiver IP is correct.
+4. Homebridge logs show the Yamaha accessory being created/restored.
+5. The Homebridge bridge is paired with Apple Home.
+
+### Homebridge Cannot Install the Plugin
+
+Confirm that the npm package is available:
+
+```bash
+npm view homebridge-yamaha-alexa-bridge version
+```
+
+The package name is:
+
+```text
+homebridge-yamaha-alexa-bridge
+```
 
 ## Security
 
-**Never commit your real `config.json` to GitHub.**
+**Never commit real credentials to GitHub.**
 
-It contains your Sinric Pro credentials and local network information. The repository's `.gitignore` is configured to exclude this file.
+Do not commit:
+
+```text
+config.json
+```
+
+The file contains:
+
+- Sinric Pro App Key
+- Sinric Pro App Secret
+- Sinric Pro Device ID
+- Local network information
+
+Use `config.example.json` as the template for standalone deployments.
+
+For Homebridge deployments, enter credentials through Homebridge UI and keep the live Homebridge configuration out of source control.
 
 ## Project Structure
+
+Current project structure:
 
 ```text
 yamaha-alexa-bridge/
 ├── index.js
 ├── config.example.json
+├── config.schema.json
 ├── package.json
+├── package-lock.json
+├── homebridge/
+│   ├── index.js
+│   ├── platform.js
+│   └── accessory.js
+├── lib/
+│   ├── yamaha.js
+│   └── sinricpro.js
 ├── patches/
 │   └── sinricpro+5.1.0.patch
-├── install-macos-service.sh
-├── install-service.bat
-├── uninstall-service.bat
+├── .npmignore
 └── README.md
 ```
 
-`node_modules` is intentionally excluded from the repository and is created automatically by `npm install`.
+### Important files
+
+**`index.js`**
+
+Original standalone application, including the original web dashboard.
+
+**`homebridge/index.js`**
+
+Homebridge plugin entry point.
+
+**`homebridge/platform.js`**
+
+Homebridge platform implementation. Creates the shared Yamaha controller and starts the Sinric Pro integration when configured.
+
+**`homebridge/accessory.js`**
+
+HomeKit Yamaha receiver accessory implementation.
+
+**`lib/yamaha.js`**
+
+Shared Yamaha Extended Control API controller used by HomeKit and Sinric Pro.
+
+**`lib/sinricpro.js`**
+
+Sinric Pro integration used by the Homebridge-hosted Alexa functionality.
+
+**`config.schema.json`**
+
+Homebridge UI configuration schema.
+
+**`patches/sinricpro+5.1.0.patch`**
+
+Compatibility patch for Sinric Pro 5.1.0.
+
+## Design Goals
+
+The current architecture is intended to keep the control layers independent while sharing the Yamaha implementation:
+
+```text
+             HomeKit / Siri
+                   |
+                   v
+              Homebridge
+                   |
+                   |
+Alexa ---> Sinric Pro
+                   |
+                   v
+           YamahaController
+                   |
+                   v
+           Yamaha Receiver
+```
+
+This allows HomeKit and Alexa to control the same receiver without maintaining separate Yamaha API implementations.
+
+## Roadmap
+
+Planned/ongoing improvements include:
+
+- Migrate the standalone web dashboard into the Homebridge-hosted architecture
+- Continue improving HomeKit volume presentation
+- Improve Homebridge status/configuration experience
+- Continue simplifying shared Yamaha control logic
+- Maintain compatibility with the Sinric Pro volume integration
+- Publish future Homebridge releases through npm
 
 ## Credits
 
 - Yamaha Extended Control API for receiver control
 - Sinric Pro for Alexa device integration
+- Homebridge for HomeKit integration
 - `patch-package` for maintaining the Sinric Pro 5.1.0 compatibility patch
 
 ## License
