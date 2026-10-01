@@ -7,7 +7,7 @@ Control compatible Yamaha network receivers with **Apple Home, Siri, Amazon Alex
 
 ## Architecture
 
-![Yamaha Alexa Bridge architecture](docs/architecture.png)
+![Yamaha Alexa Bridge architecture](https://raw.githubusercontent.com/storkpkp/yamaha-alexa-bridge-2/aad42d8232d401fa8319cdded9cb0bac2588b42a/docs/architecture.png)
 
 Homebridge hosts the plugin. HomeKit communicates through Homebridge, Alexa connects through Sinric Pro, and the built-in dashboard provides browser controls. Each control path uses the shared Yamaha controller to communicate with the receiver over the YXC API.
 
@@ -26,7 +26,7 @@ Homebridge hosts the plugin. HomeKit communicates through Homebridge, Alexa conn
 
 The dashboard is enabled by default and listens on port **8080**. Open `http://<homebridge-host>:8080` from a device on your network. Set `dashboard.enabled` to `false` to disable it, or choose another port in the Homebridge configuration.
 
-![Yamaha Alexa Bridge web dashboard](docs/dashboard.png)
+![Yamaha Alexa Bridge web dashboard](https://raw.githubusercontent.com/storkpkp/yamaha-alexa-bridge-2/aad42d8232d401fa8319cdded9cb0bac2588b42a/docs/dashboard.png)
 
 ## Requirements
 
