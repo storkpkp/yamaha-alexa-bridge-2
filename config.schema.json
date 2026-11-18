@@ -22,6 +22,14 @@
         "default": "main",
         "required": true
       },
+      "inputMap": {
+        "title": "Input Name Mapping",
+        "type": "object",
+        "description": "Map friendly input names to Yamaha input IDs.",
+        "additionalProperties": {
+          "type": "string"
+        }
+      },
       "sinricpro": {
         "title": "SinricPro",
         "type": "object",
@@ -61,6 +69,23 @@
             "default": 8080,
             "minimum": 1,
             "maximum": 65535
+          },
+          "auth": {
+            "title": "Dashboard Authentication",
+            "type": "object",
+            "properties": {
+              "username": {
+                "title": "Username",
+                "type": "string",
+                "minLength": 1
+              },
+              "password": {
+                "title": "Password",
+                "type": "string",
+                "x-schema-form": { "type": "password" },
+                "minLength": 1
+              }
+            }
           }
         }
       }

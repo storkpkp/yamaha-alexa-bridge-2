@@ -1,10 +1,11 @@
 {
   "name": "homebridge-yamaha-alexa-bridge",
-  "version": "1.0.5",
+  "version": "1.0.6-beta.0",
   "description": "Control Yamaha MusicCast receivers with HomeKit, Siri, and Alexa",
   "main": "homebridge/index.js",
   "scripts": {
     "start": "node index.js",
+    "test": "node --test",
     "postinstall": "patch-package"
   },
   "keywords": [

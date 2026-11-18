@@ -1,7 +1,5 @@
 'use strict';
 
-const YamahaController = require('../lib/yamaha');
-
 class YamahaAccessory {
   constructor(platform, accessory) {
     this.log = platform.log;
@@ -12,10 +10,7 @@ class YamahaAccessory {
     this.accessory = accessory;
     this.name = accessory.context.device.name;
 
-    this.yamaha = new YamahaController({
-      ip: accessory.context.device.ip,
-      zone: accessory.context.device.zone,
-    });
+    this.yamaha = platform.yamaha;
 
     this.informationService = this.accessory.getService(
       this.Service.AccessoryInformation
@@ -66,7 +61,7 @@ class YamahaAccessory {
 
       await this.yamaha.setPower(isOn);
 
-      await this.syncPowerState();
+      await this.syncState();
     });
 
     this.televisionSpeakerService =
@@ -141,7 +136,7 @@ class YamahaAccessory {
 
       await this.yamaha.adjustVolume(direction);
 
-      await this.syncVolumeState();
+      await this.syncState();
     });
 
     this.volumeControlTypeCharacteristic =
@@ -153,14 +148,10 @@ class YamahaAccessory {
       this.Characteristic.VolumeControlType.ABSOLUTE
     );
 
-    this.syncPowerState();
-    this.syncVolumeState();
+    this.syncState();
 
     this.pollTimer = setInterval(
-      () => {
-        this.syncPowerState();
-        this.syncVolumeState();
-      },
+      () => this.syncState(),
       5000
     );
 
@@ -169,12 +160,30 @@ class YamahaAccessory {
     );
   }
 
-  async syncPowerState() {
+  async syncState() {
+    let status;
+
     try {
-      const status = await this.yamaha.getStatus();
+      status = await this.yamaha.getStatus();
+    } catch (error) {
+      this.log.warn(
+        `Receiver state sync failed: ${error.message}`
+      );
+      return;
+    }
+
+    await Promise.all([
+      this.syncPowerState(status),
+      this.syncVolumeState(status),
+    ]);
+  }
+
+  async syncPowerState(status) {
+    try {
+      const receiverStatus = status || await this.yamaha.getStatus();
 
       const actualState =
-        status.power === 'on'
+        receiverStatus.power === 'on'
           ? this.Characteristic.Active.ACTIVE
           : this.Characteristic.Active.INACTIVE;
 
@@ -199,13 +208,13 @@ class YamahaAccessory {
     }
   }
 
-  async syncVolumeState() {
+  async syncVolumeState(status) {
     try {
-      const status = await this.yamaha.getStatus();
+      const receiverStatus = status || await this.yamaha.getStatus();
 
-      const volume = Number(status.volume);
+      const volume = Number(receiverStatus.volume);
       const maxVolume = Number(
-        status.max_volume || this.yamaha.maxVolume
+        receiverStatus.max_volume || this.yamaha.maxVolume
       );
 
       if (!Number.isFinite(volume) || !Number.isFinite(maxVolume) || maxVolume <= 0) {

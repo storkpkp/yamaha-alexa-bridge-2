@@ -14,6 +14,7 @@ class YamahaAlexaBridgePlatform {
     this.Characteristic = api.hap.Characteristic;
 
     this.cachedAccessories = [];
+    this.accessoryHandlers = new Set();
     this.yamaha = null;
     this.sinricPro = null;
     this.dashboard = null;
@@ -52,6 +53,12 @@ class YamahaAlexaBridgePlatform {
   }
 
   async shutdown() {
+    for (const accessory of this.accessoryHandlers) {
+      accessory.shutdown();
+    }
+
+    this.accessoryHandlers.clear();
+
     if (this.dashboard) {
       try {
         await this.dashboard.stop();
@@ -59,6 +66,17 @@ class YamahaAlexaBridgePlatform {
       } catch (error) {
         this.log.error(
           `Dashboard shutdown failed: ${error.message}`
+        );
+      }
+    }
+
+    if (this.sinricPro) {
+      try {
+        await this.sinricPro.stop();
+        this.log.info('SinricPro stopped.');
+      } catch (error) {
+        this.log.error(
+          `SinricPro shutdown failed: ${error.message}`
         );
       }
     }
@@ -81,6 +99,7 @@ class YamahaAlexaBridgePlatform {
         bridgeStatus: this.bridgeStatus,
         log: this.log,
         port: this.config.dashboard?.port || 8080,
+        auth: this.config.dashboard?.auth,
         inputMap: this.config.inputMap || {
           'HDMI 1': 'hdmi1',
           'HDMI 2': 'hdmi2',
@@ -135,7 +154,8 @@ class YamahaAlexaBridgePlatform {
       };
     }
 
-    new YamahaAccessory(this, accessory);
+    const accessoryHandler = new YamahaAccessory(this, accessory);
+    this.accessoryHandlers.add(accessoryHandler);
 
     if (isNewAccessory) {
       this.api.registerPlatformAccessories(
