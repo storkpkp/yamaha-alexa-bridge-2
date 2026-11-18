@@ -1,58 +1,41 @@
 # Yamaha Alexa Bridge
 
 [![npm version](https://img.shields.io/npm/v/homebridge-yamaha-alexa-bridge.svg)](https://www.npmjs.com/package/homebridge-yamaha-alexa-bridge)
-[![Homebridge](https://img.shields.io/badge/Homebridge-plugin-blue)](https://homebridge.io/)
+[![Homebridge](https://img.shields.io/badge/Homebridge-2.x-blue)](https://homebridge.io/)
 
-Control compatible Yamaha network receivers with **Apple Home, Siri, Amazon Alexa, and the Yamaha Extended Control (YXC) API**. Yamaha Alexa Bridge runs inside Homebridge and shares one receiver controller across HomeKit, Sinric Pro, and the web dashboard.
+Yamaha Alexa Bridge is a Homebridge platform plugin for controlling a compatible Yamaha network receiver from Apple Home and Siri, Amazon Alexa, or a web browser. It communicates with the receiver over Yamaha's local Yamaha Extended Control (YXC) API. Alexa control uses Sinric Pro.
 
-## Architecture
+![Yamaha Alexa Bridge architecture](docs/architecture.png)
 
-![Yamaha Alexa Bridge architecture](https://raw.githubusercontent.com/storkpkp/yamaha-alexa-bridge-2/aad42d8232d401fa8319cdded9cb0bac2588b42a/docs/architecture.png)
-
-Homebridge hosts the plugin. HomeKit communicates through Homebridge, Alexa connects through Sinric Pro, and the built-in dashboard provides browser controls. Each control path uses the shared Yamaha controller to communicate with the receiver over the YXC API.
+Homebridge hosts the plugin. HomeKit uses the Homebridge accessory, Alexa connects through Sinric Pro, and the dashboard provides browser controls. These paths communicate with the configured receiver and zone.
 
 ## Features
 
-- HomeKit and Siri power, volume, and receiver status controls
-- Amazon Alexa control through Sinric Pro
-- Built-in web dashboard for receiver status and controls
-- Yamaha receiver power, volume, mute, input, and playback controls where supported
-- Main, Zone 2, Zone 3, and Zone 4 support where available
-- Live status synchronization across HomeKit, Alexa, and the dashboard
-- Automatic conversion between percentage volume and the receiver's native scale
-- Homebridge UI configuration
-
-## Dashboard
-
-The dashboard is enabled by default and listens on port **8080**. Open `http://<homebridge-host>:8080` from a device on your network. Set `dashboard.enabled` to `false` to disable it, or choose another port in the Homebridge configuration.
-
-![Yamaha Alexa Bridge web dashboard](https://raw.githubusercontent.com/storkpkp/yamaha-alexa-bridge-2/aad42d8232d401fa8319cdded9cb0bac2588b42a/docs/dashboard.png)
+- HomeKit and Siri power and volume control, with receiver power and volume status synchronization.
+- Alexa power, absolute and relative volume, mute, media controls, and input selection through Sinric Pro.
+- Built-in dashboard for receiver and Sinric Pro status, power, volume, mute, and input controls.
+- Configurable Yamaha zone and input-name mapping.
+- Volume conversion between a 0–100 percentage and the receiver's native volume scale.
 
 ## Requirements
 
-- Homebridge 2.x
-- Node.js 22 or later
-- A Yamaha receiver that supports the Yamaha Extended Control API
-- A Sinric Pro account and device for Alexa control
+- Homebridge 2.x and Node.js 22 or later.
+- A Yamaha receiver that supports the YXC API and the configured controls for its model and zone.
+- A Sinric Pro account, app credentials, and a TV device for Alexa integration.
 
-## Installation
+The plugin is configured as one Homebridge platform. The configured Yamaha zone is used for the HomeKit accessory, Alexa commands, and dashboard. Yamaha models differ in supported zones, inputs, and playback capabilities; use the receiver's documentation to confirm support.
 
-In Homebridge UI:
+## Install
 
-1. Open **Plugins** and search for **Yamaha Alexa Bridge**.
-2. Install `homebridge-yamaha-alexa-bridge`.
-3. Add the Yamaha Alexa Bridge platform and enter the receiver and Sinric Pro details.
-4. Save the configuration and restart Homebridge.
-
-You can also install it from the Homebridge host with:
+In Homebridge UI, open **Plugins**, search for **Yamaha Alexa Bridge**, and install `homebridge-yamaha-alexa-bridge`. Add the platform configuration below, save, and restart Homebridge. Alternatively, install on the Homebridge host with:
 
 ```sh
 npm install -g homebridge-yamaha-alexa-bridge
 ```
 
-## Configuration
+## Configure
 
-The Homebridge UI provides fields for the platform configuration. A JSON configuration looks like this:
+Create a Sinric Pro TV device and use its App Key, App Secret, and Device ID below. The `inputMap` keys are the input names exposed to Alexa; values are Yamaha input identifiers. Adjust them for the inputs supported by your receiver.
 
 ```json
 {
@@ -60,6 +43,12 @@ The Homebridge UI provides fields for the platform configuration. A JSON configu
   "name": "Yamaha Receiver",
   "ip": "192.168.1.100",
   "zone": "main",
+  "inputMap": {
+    "HDMI 1": "hdmi1",
+    "HDMI 2": "hdmi2",
+    "Bluetooth": "bluetooth",
+    "Spotify": "spotify"
+  },
   "sinricpro": {
     "appKey": "YOUR_APP_KEY",
     "appSecret": "YOUR_APP_SECRET",
@@ -72,37 +61,62 @@ The Homebridge UI provides fields for the platform configuration. A JSON configu
 }
 ```
 
-Keep the Sinric Pro credentials private. Do not commit a live Homebridge configuration or credentials to source control.
+Keep Sinric Pro credentials private. Do not commit a live Homebridge configuration or credentials to source control.
 
-## Receiver compatibility
+### Keep the receiver address stable
 
-The receiver must support the Yamaha Extended Control (YXC) API. To check connectivity, open this URL with your receiver's IP address:
+The plugin connects to the receiver by its local IP address. Create a DHCP reservation for the receiver in your router and use that reserved address in the Homebridge configuration. If the receiver's address changes, update the configuration and restart Homebridge.
+
+## HomeKit and Siri
+
+Homebridge publishes a television accessory for the configured receiver and zone. HomeKit exposes power and speaker volume, including relative volume adjustment; the plugin polls the receiver to keep those states synchronized. Add the accessory through Homebridge's normal bridge pairing flow, then use the Home app or Siri to control it.
+
+## Alexa and Sinric Pro
+
+The plugin connects to Sinric Pro using the configured credentials and registers a Sinric Pro TV device. Link the Sinric Pro Alexa skill to your account and discover the device in Alexa. Supported callbacks include power, setting or adjusting volume, mute, media play/pause/stop/next/previous/fast forward/rewind, and input selection. Actual behavior depends on the Yamaha receiver, selected zone, source, and Alexa/Sinric Pro support.
+
+## Web dashboard
+
+The dashboard is enabled by default on port **8080**. Open `http://<homebridge-host>:8080` from a device that can reach the Homebridge host. Change `dashboard.port` to use another port, or set `dashboard.enabled` to `false` to disable it.
+
+![Yamaha Alexa Bridge web dashboard](docs/dashboard.png)
+
+The dashboard has no separate authentication. Keep it on a trusted local network and do not expose its port to the public internet.
+
+## Yamaha compatibility
+
+The receiver must expose the Yamaha Extended Control API on the local network. You can check basic connectivity by opening this URL from a device on the same network, replacing the address with your receiver's IP:
 
 ```text
 http://<receiver-ip>/YamahaExtendedControl/v1/main/getStatus
 ```
 
-A JSON response containing receiver status indicates that the API is reachable. Supported inputs and zones vary by receiver model.
+A JSON status response indicates that the endpoint is reachable. Zone names, input identifiers, and available commands vary by model. For another zone, use a supported zone value in `zone`; configure `inputMap` to match the receiver's input identifiers.
 
 ## Troubleshooting
 
 ### The receiver is unreachable
 
-- Confirm the receiver and Homebridge host are on the same network.
-- Check the receiver IP address and selected zone.
+- Confirm the receiver and Homebridge host are on the same local network.
+- Check the receiver IP and zone in the Homebridge platform configuration.
 - Open the YXC status URL above from the Homebridge host's network.
+- Reserve the receiver's address in the router so it does not change.
+
+### HomeKit shows stale status or cannot control the receiver
+
+- Confirm the receiver is reachable and supports the selected zone.
+- Check the Homebridge log for Yamaha request errors, then restart Homebridge after correcting the configuration.
 
 ### Alexa cannot control the receiver
 
-- Confirm the Sinric Pro App Key, App Secret, and Device ID are correct.
-- Check that the Sinric Pro device is online and linked to the Alexa skill.
-- Review the Homebridge log for connection errors.
+- Check the Sinric Pro App Key, App Secret, and Device ID.
+- Confirm the device is online in Sinric Pro and the Sinric Pro Alexa skill is linked; then rediscover devices in Alexa.
+- Check the Homebridge log for Sinric Pro connection errors.
 
 ### The dashboard does not open
 
-- Confirm the dashboard is enabled in the platform configuration.
-- Open `http://<homebridge-host>:<port>` and check that the port is not already in use.
-- Make sure the device viewing the dashboard can reach the Homebridge host on your network.
+- Confirm the dashboard is enabled and use `http://<homebridge-host>:<configured-port>`.
+- Check that the port is not already in use and that the viewing device can reach the Homebridge host.
 
 ## Development
 
@@ -112,7 +126,7 @@ cd yamaha-alexa-bridge-2
 npm install
 ```
 
-The Homebridge plugin entry point is `homebridge/index.js`. The platform and accessory implementation are in `homebridge/`, and the shared Yamaha and Sinric Pro integrations are in `lib/`.
+The Homebridge entry point is `homebridge/index.js`. Platform and accessory code are in `homebridge/`; the Yamaha controller, Sinric Pro integration, and dashboard are in `lib/`.
 
 ## License
 
